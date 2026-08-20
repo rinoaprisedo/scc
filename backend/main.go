@@ -4,7 +4,7 @@
 // @title						BaseAdmin API
 // @version					1.0
 // @description				Admin Panel Base Project API
-// @host						localhost:8500
+// @host						localhost:8880
 // @BasePath					/api/v1
 // @securityDefinitions.apikey	SessionCookie
 // @in							cookie

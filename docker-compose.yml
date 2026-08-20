@@ -1,41 +1,26 @@
+name: scc
+
 services:
   postgres:
     image: postgres:18-alpine
+    container_name: scc-postgres
     environment:
-      POSTGRES_DB: baseadmin
+      POSTGRES_DB: scc
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-    ports: ["5433:5432"]
-    volumes: [pgdata:/var/lib/postgresql/data]
+    ports: ["5435:5432"]
+    volumes: [pgdata:/var/lib/postgresql]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
 
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    container_name: scc-redis
+    ports: ["6381:6379"]
     command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-
-  backend:
-    build: ./backend
-    ports: ["8500:8500"]
-    environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      FRONTEND_URL: http://localhost:8501,http://localhost:8502
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis: { condition: service_healthy }
-    env_file: ./backend/.env
-
-  frontend:
-    build: ./frontend
-    ports: ["8501:80"]
-    depends_on: [backend]
 
 volumes:
   pgdata:

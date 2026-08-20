@@ -12,5 +12,5 @@ RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=builder /baseadmin ./baseadmin
 COPY --from=builder /app/storage ./storage
-EXPOSE 8500
+EXPOSE 8880
 CMD ["./baseadmin"]

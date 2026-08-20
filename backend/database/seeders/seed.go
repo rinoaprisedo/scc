@@ -158,7 +158,7 @@ func seedSettings(db *gorm.DB) {
 		"maintenance_mode": settings.TypeBoolean,
 	}
 	values := map[string]string{
-		"app_name":         "BaseAdmin",
+		"app_name":         "scc",
 		"app_logo":         "",
 		"app_favicon":      "",
 		"maintenance_mode": "false",
