@@ -7,7 +7,7 @@ COPY . .
 RUN swag init -g main.go -o docs
 RUN CGO_ENABLED=0 GOOS=linux go build -o /baseadmin main.go
 
-FROM alpine:3.20
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=builder /baseadmin ./baseadmin
