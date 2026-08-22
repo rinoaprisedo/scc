@@ -4,9 +4,12 @@ import (
 	"log"
 
 	"baseadmin/backend/modules/activity_logs"
+	"baseadmin/backend/modules/bandara"
+	"baseadmin/backend/modules/kota_asal"
 	"baseadmin/backend/modules/menu_sections"
 	"baseadmin/backend/modules/menus"
 	"baseadmin/backend/modules/permissions"
+	"baseadmin/backend/modules/qr_gate"
 	"baseadmin/backend/modules/roles"
 	"baseadmin/backend/modules/settings"
 	"baseadmin/backend/modules/users"
@@ -17,6 +20,8 @@ import (
 // Run applies GORM AutoMigrate across every model in the project.
 func Run(db *gorm.DB) {
 	err := db.AutoMigrate(
+		&kota_asal.KotaAsal{},
+		&bandara.Bandara{},
 		&users.User{},
 		&roles.Role{},
 		&users.Session{},
@@ -27,14 +32,35 @@ func Run(db *gorm.DB) {
 		&permissions.Permission{},
 		&settings.Setting{},
 		&activity_logs.ActivityLog{},
+		&qr_gate.QrGate{},
+		&qr_gate.QrGateScan{},
 	)
 	if err != nil {
 		log.Fatalf("migration failed: %v", err)
 	}
 
 	applyPartialUniqueIndexes(db)
+	dropLegacyColumns(db)
 
 	log.Println("migrations applied successfully")
+}
+
+// dropLegacyColumns removes columns superseded by a later, consolidated
+// field — kept separate from AutoMigrate (which only ever adds/alters,
+// never drops, for safety) and from applyPartialUniqueIndexes (a different
+// concern). Idempotent: IF EXISTS makes every statement safe to re-run.
+func dropLegacyColumns(db *gorm.DB) {
+	statements := []string{
+		// Replaced by users.attendance_status, which folds the attendance
+		// answer and form/shirt completeness into one field instead of two
+		// separate things a reader had to combine themselves.
+		`ALTER TABLE users DROP COLUMN IF EXISTS attendance_confirmed`,
+	}
+	for _, stmt := range statements {
+		if err := db.Exec(stmt).Error; err != nil {
+			log.Fatalf("failed to drop legacy column (%s): %v", stmt, err)
+		}
+	}
 }
 
 // applyPartialUniqueIndexes enforces uniqueness only among non-deleted rows.
@@ -48,6 +74,13 @@ func applyPartialUniqueIndexes(db *gorm.DB) {
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_active ON users (email) WHERE deleted_at IS NULL`,
 		`DROP INDEX IF EXISTS idx_roles_name`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_roles_name_active ON roles (name) WHERE deleted_at IS NULL`,
+		// ktp_number (NIK) will be the peserta login identifier once that
+		// flow ships — enforce uniqueness now. Postgres partial unique
+		// indexes already treat NULL as distinct-from-NULL, so non-peserta
+		// users (whose ktp_number is always NULL) never collide here.
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_ktp_number_active ON users (ktp_number) WHERE deleted_at IS NULL`,
+		// The scanned code must resolve to exactly one active gate.
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_qr_gates_code_active ON qr_gates (code) WHERE deleted_at IS NULL`,
 	}
 	for _, stmt := range statements {
 		if err := db.Exec(stmt).Error; err != nil {

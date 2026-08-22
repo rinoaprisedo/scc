@@ -22,7 +22,12 @@ var (
 	ErrResetTokenExpired  = errors.New("token has expired")
 	ErrWrongPassword      = errors.New("current password is incorrect")
 	ErrPasswordReused     = errors.New("cannot reuse any of your last 5 passwords")
+	ErrNotPeserta         = errors.New("only peserta accounts can log in here")
 )
+
+// pesertaRoleName mirrors the constant in modules/peserta — duplicated
+// rather than imported to avoid a cross-module dependency for one string.
+const pesertaRoleName = "Peserta"
 
 type PermissionDTO struct {
 	Path      string `json:"path"`
@@ -54,6 +59,25 @@ func (s *Service) Login(email, password, ip, userAgent string) (*LoginResult, er
 	if err != nil {
 		return nil, ErrInvalidCredentials
 	}
+	return s.authenticate(user, password, ip, userAgent)
+}
+
+// PesertaLogin is the NIK + password login used by the participant-facing
+// website — restricted to the Peserta role even when credentials are valid,
+// since that role check is the only thing standing between this endpoint and
+// letting any user with a set ktp_number log in there.
+func (s *Service) PesertaLogin(nik, password, ip, userAgent string) (*LoginResult, error) {
+	user, err := s.repo.FindUserByKtpNumber(nik)
+	if err != nil {
+		return nil, ErrInvalidCredentials
+	}
+	if user.Role == nil || user.Role.Name != pesertaRoleName {
+		return nil, ErrNotPeserta
+	}
+	return s.authenticate(user, password, ip, userAgent)
+}
+
+func (s *Service) authenticate(user *users.User, password, ip, userAgent string) (*LoginResult, error) {
 	if !CheckPassword(user.Password, password) {
 		return nil, ErrInvalidCredentials
 	}

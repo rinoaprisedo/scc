@@ -25,8 +25,12 @@ import (
 	"baseadmin/backend/middleware"
 	"baseadmin/backend/modules/activity_logs"
 	"baseadmin/backend/modules/auth"
+	"baseadmin/backend/modules/bandara"
+	"baseadmin/backend/modules/kota_asal"
 	"baseadmin/backend/modules/menu_sections"
 	"baseadmin/backend/modules/menus"
+	"baseadmin/backend/modules/peserta"
+	"baseadmin/backend/modules/qr_gate"
 	"baseadmin/backend/modules/roles"
 	"baseadmin/backend/modules/settings"
 	"baseadmin/backend/modules/users"
@@ -117,6 +121,18 @@ func main() {
 
 	menuSectionsHandler := menu_sections.NewHandler(db)
 	menuSectionsHandler.RegisterRoutes(api, guard)
+
+	kotaAsalHandler := kota_asal.NewHandler(db)
+	kotaAsalHandler.RegisterRoutes(api, sessionAuth, guard)
+
+	bandaraHandler := bandara.NewHandler(db)
+	bandaraHandler.RegisterRoutes(api, sessionAuth, guard)
+
+	pesertaHandler := peserta.NewHandler(db, localStorage, rdb)
+	pesertaHandler.RegisterRoutes(api, sessionAuth, guard, uploadLimiter)
+
+	qrGateHandler := qr_gate.NewHandler(db)
+	qrGateHandler.RegisterRoutes(api, sessionAuth, guard)
 
 	settingsHandler := settings.NewHandler(db, rdb, localStorage)
 	settingsHandler.RegisterRoutes(api, guard, uploadLimiter)

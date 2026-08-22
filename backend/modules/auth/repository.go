@@ -28,9 +28,17 @@ func (r *Repository) FindUserByEmail(email string) (*users.User, error) {
 	return &user, nil
 }
 
+func (r *Repository) FindUserByKtpNumber(nik string) (*users.User, error) {
+	var user users.User
+	if err := r.DB.Preload("Role").Preload("OriginCity").Preload("NearestAirport").Where("ktp_number = ?", nik).First(&user).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 func (r *Repository) FindUserByID(id uint64) (*users.User, error) {
 	var user users.User
-	if err := r.DB.Preload("Role").First(&user, id).Error; err != nil {
+	if err := r.DB.Preload("Role").Preload("OriginCity").Preload("NearestAirport").First(&user, id).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil

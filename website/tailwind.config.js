@@ -9,13 +9,20 @@ export default {
         mono: ['DM Mono', 'monospace'],
       },
       colors: {
-        primary: {
-          DEFAULT: 'rgb(var(--color-primary-rgb) / <alpha-value>)',
-          dark: 'rgb(var(--color-primary-dark-rgb) / <alpha-value>)',
+        navy: {
+          DEFAULT: '#0b1830',
+          light: '#142a4d',
+          dark: '#060d1b',
+        },
+        gold: {
+          DEFAULT: '#d4af5a',
+          light: '#f0d385',
+          dark: '#a97f2e',
         },
         surface: {
           bg: '#f7f6f3',
           card: '#ffffff',
+          border: '#e2e1db',
         },
         text: {
           primary: '#1a1917',

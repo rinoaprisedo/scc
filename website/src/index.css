@@ -4,10 +4,8 @@
 
 html {
   font-family: 'DM Sans', sans-serif;
-  --color-primary-rgb: 194 98 46;
-  --color-primary-dark-rgb: 168 80 31;
 }
 
 body {
-  @apply bg-surface-bg text-text-primary;
+  @apply bg-navy text-text-primary;
 }

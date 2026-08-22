@@ -11,7 +11,31 @@ import { fileURL } from '../../utils/url'
 import usePageActions from '../../hooks/usePageActions'
 import useSettingsStore from '../../store/settingsStore'
 
-const tabs = ['General', 'Appearance', 'Maintenance']
+const tabs = ['General', 'Appearance', 'Website Content', 'Website Menu', 'Registration', 'Maintenance']
+
+const CONTENT_ITEMS = [
+  { key: 'agenda_file', label: 'Agenda Acara' },
+  { key: 'dress_code_file', label: 'Dress Code' },
+  { key: 'event_information_file', label: 'Event Information' },
+  { key: 'about_malaysia_file', label: 'About Malaysia' },
+]
+
+// Mirrors the participant website's Dashboard MENU_ITEMS — toggling one off
+// makes the site show a "belum tersedia" popup instead of opening it.
+const MENU_TOGGLES = [
+  { key: 'menu_event_agenda_enabled', label: 'Event Agenda' },
+  { key: 'menu_event_gallery_enabled', label: 'Event Gallery' },
+  { key: 'menu_dress_code_enabled', label: 'Dress Code' },
+  { key: 'menu_qris_cross_border_enabled', label: 'QRIS Cross Border' },
+  { key: 'menu_about_malaysia_enabled', label: 'About Malaysia' },
+  { key: 'menu_scanner_qr_enabled', label: 'Scanner QR' },
+  { key: 'menu_history_scanner_enabled', label: 'History Scanner' },
+  { key: 'menu_event_information_enabled', label: 'Event Information' },
+]
+
+function isPdf(path) {
+  return !!path && path.toLowerCase().endsWith('.pdf')
+}
 
 function Settings() {
   const [tab, setTab] = useState('General')
@@ -20,6 +44,9 @@ function Settings() {
   const [logoPreview, setLogoPreview] = useState(null)
   const [faviconPreview, setFaviconPreview] = useState(null)
   const [primaryColor, setPrimaryColorInput] = useState('#c2622e')
+  const [menuToggles, setMenuToggles] = useState({})
+  const [registrationDeadline, setRegistrationDeadline] = useState('')
+  const [formEditDeadline, setFormEditDeadline] = useState('')
   const queryClient = useQueryClient()
   const applyPrimaryColorLive = useSettingsStore((s) => s.setPrimaryColor)
   const storedPrimaryColor = useSettingsStore((s) => s.primaryColor)
@@ -35,6 +62,13 @@ function Settings() {
       setLogoPreview(fileURL(map.app_logo))
       setFaviconPreview(fileURL(map.app_favicon))
       setPrimaryColorInput(map.primary_color || storedPrimaryColor)
+      const toggles = {}
+      MENU_TOGGLES.forEach(({ key }) => {
+        toggles[key] = map[key] !== 'false' // missing key defaults to enabled
+      })
+      setMenuToggles(toggles)
+      setRegistrationDeadline(map.registration_deadline || '')
+      setFormEditDeadline(map.form_edit_deadline || '')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data])
@@ -61,6 +95,25 @@ function Settings() {
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Upload failed'),
   })
+
+  const handleMenuToggleChange = (key) => (e) => {
+    setMenuToggles((prev) => ({ ...prev, [key]: e.target.checked }))
+  }
+
+  const handleSaveMenuToggles = () => {
+    const payload = {}
+    MENU_TOGGLES.forEach(({ key }) => {
+      payload[key] = menuToggles[key] ? 'true' : 'false'
+    })
+    saveMutation.mutate(payload)
+  }
+
+  const handleContentUpload = (key) => (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('target', key)
+    uploadMutation.mutate(formData)
+  }
 
   const handleFileChange = (key) => (file) => {
     const formData = new FormData()
@@ -152,6 +205,113 @@ function Settings() {
                 disabled={saveMutation.isPending}
               >
                 Save Color
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {tab === 'Website Content' && (
+          <div className="max-w-md space-y-6">
+            <p className="text-sm text-text-secondary">
+              Image or PDF shown in the participant website's Agenda Acara / Dress Code / Event Information / About
+              Malaysia popups.
+            </p>
+            {CONTENT_ITEMS.map(({ key, label }) => {
+              const path = data?.data?.[key]
+              const pdf = isPdf(path)
+              return (
+                <div key={key}>
+                  <FileUpload
+                    label={label}
+                    hint="PNG, JPEG, WebP, or PDF"
+                    accept="image/png,image/jpeg,image/webp,application/pdf"
+                    preview={path && !pdf ? fileURL(path) : null}
+                    onFileSelect={handleContentUpload(key)}
+                    previewClassName="h-16 w-16"
+                  />
+                  {path && (
+                    <a
+                      href={fileURL(path)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1 inline-block text-xs font-medium text-primary hover:underline"
+                    >
+                      {pdf ? 'View current PDF' : 'View current file'}
+                    </a>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {tab === 'Website Menu' && (
+          <div className="max-w-md space-y-4">
+            <p className="text-sm text-text-secondary">
+              Turn a tile off to show "Maaf, Fitur ini belum tersedia" instead of opening it on the participant
+              website.
+            </p>
+            <div className="space-y-3">
+              {MENU_TOGGLES.map(({ key, label }) => (
+                <label key={key} className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={menuToggles[key] ?? true}
+                    onChange={handleMenuToggleChange(key)}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  <span className="text-sm text-text-primary">{label}</span>
+                </label>
+              ))}
+            </div>
+            <Button onClick={handleSaveMenuToggles} disabled={saveMutation.isPending}>
+              Save
+            </Button>
+          </div>
+        )}
+
+        {tab === 'Registration' && (
+          <div className="max-w-md space-y-6">
+            <div>
+              <p className="mb-1 text-sm font-medium text-text-primary">Attendance Confirmation Deadline</p>
+              <p className="mb-2 text-xs text-text-secondary">
+                After this, a participant who hasn't answered the attendance prompt yet sees "Maaf, registrasi sudah
+                ditutup" on login instead. Anyone who already answered (hadir or tidak hadir) is unaffected. Leave
+                blank for no deadline.
+              </p>
+              <input
+                type="datetime-local"
+                value={registrationDeadline}
+                onChange={(e) => setRegistrationDeadline(e.target.value)}
+                className="h-[42px] w-full rounded-md border-[1.5px] border-surface-border bg-white px-3 text-sm text-text-primary outline-none focus:border-primary"
+              />
+              <Button
+                className="mt-3"
+                onClick={() => saveMutation.mutate({ registration_deadline: registrationDeadline })}
+                disabled={saveMutation.isPending}
+              >
+                Save
+              </Button>
+            </div>
+
+            <div>
+              <p className="mb-1 text-sm font-medium text-text-primary">Form Edit Deadline</p>
+              <p className="mb-2 text-xs text-text-secondary">
+                After this, participants can no longer submit or edit their profile form — they see a warning
+                instead. Leave blank for no deadline.
+              </p>
+              <input
+                type="datetime-local"
+                value={formEditDeadline}
+                onChange={(e) => setFormEditDeadline(e.target.value)}
+                className="h-[42px] w-full rounded-md border-[1.5px] border-surface-border bg-white px-3 text-sm text-text-primary outline-none focus:border-primary"
+              />
+              <Button
+                className="mt-3"
+                onClick={() => saveMutation.mutate({ form_edit_deadline: formEditDeadline })}
+                disabled={saveMutation.isPending}
+              >
+                Save
               </Button>
             </div>
           </div>

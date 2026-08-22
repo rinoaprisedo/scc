@@ -36,14 +36,39 @@ func (s *Service) List() (map[string]string, error) {
 	return result, nil
 }
 
-// publicKeys are readable without a session — pure branding, never anything
-// sensitive (mail credentials, API keys, etc live under other keys in the
-// same table and must stay behind the authenticated List()).
+// publicKeys are readable without a session — pure branding (plus, now, the
+// participant-website reference content below), never anything sensitive
+// (mail credentials, API keys, etc live under other keys in the same table
+// and must stay behind the authenticated List()).
 var publicKeys = map[string]bool{
-	"app_name":      true,
-	"app_logo":      true,
-	"app_favicon":   true,
-	"primary_color": true,
+	"app_name":               true,
+	"app_logo":               true,
+	"app_favicon":            true,
+	"primary_color":          true,
+	"agenda_file":            true,
+	"dress_code_file":        true,
+	"event_information_file": true,
+	"about_malaysia_file":    true,
+
+	// menu_*_enabled toggles which participant-website home menu tiles are
+	// clickable — the site shows a "belum tersedia" popup for any tile whose
+	// key is explicitly "false" here (absent/anything else defaults to on).
+	"menu_event_agenda_enabled":      true,
+	"menu_event_gallery_enabled":     true,
+	"menu_dress_code_enabled":        true,
+	"menu_qris_cross_border_enabled": true,
+	"menu_about_malaysia_enabled":    true,
+	"menu_scanner_qr_enabled":        true,
+	"menu_history_scanner_enabled":   true,
+	"menu_event_information_enabled": true,
+
+	// Deadlines (datetime-local strings, "" = no deadline) the participant
+	// website compares against the current time client-side to decide
+	// whether to show the attendance prompt / edit-form action at all —
+	// backed by a matching server-side check in peserta.Handler so the
+	// deadline can't be bypassed by calling the API directly.
+	"registration_deadline": true,
+	"form_edit_deadline":    true,
 }
 
 // Public returns only the whitelisted branding settings, for the login page
@@ -75,7 +100,19 @@ func (s *Service) BulkUpdate(payload map[string]string) error {
 	return nil
 }
 
-var uploadTargets = map[string]bool{"app_logo": true, "app_favicon": true}
+// agenda_file/dress_code_file/event_information_file/about_malaysia_file back
+// the participant website's Agenda Acara/Dress Code/Event Information/About
+// Malaysia preview popups — an image or PDF, same generic key/value +
+// file-upload mechanism as app_logo, just with a different downstream
+// consumer.
+var uploadTargets = map[string]bool{
+	"app_logo":               true,
+	"app_favicon":            true,
+	"agenda_file":            true,
+	"dress_code_file":        true,
+	"event_information_file": true,
+	"about_malaysia_file":    true,
+}
 
 func (s *Service) Upload(target string, file multipart.File, header *multipart.FileHeader) (string, error) {
 	if !uploadTargets[target] {

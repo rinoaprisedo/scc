@@ -3,6 +3,8 @@ package users
 import (
 	"time"
 
+	"baseadmin/backend/modules/bandara"
+	"baseadmin/backend/modules/kota_asal"
 	"baseadmin/backend/modules/roles"
 	"baseadmin/backend/utils"
 
@@ -20,7 +22,7 @@ const (
 
 type User struct {
 	utils.AuditModel
-	Name        string     `gorm:"type:varchar(255);not null" json:"name"`
+	Name string `gorm:"type:varchar(255);not null" json:"name"`
 	// Uniqueness on email is enforced by a partial index (WHERE deleted_at IS
 	// NULL) created in migrations, not by this tag — a plain uniqueIndex would
 	// block re-using an email after the row holding it is soft-deleted.
@@ -32,6 +34,50 @@ type User struct {
 
 	RoleID *uint64     `gorm:"index" json:"-"`
 	Role   *roles.Role `gorm:"foreignKey:RoleID" json:"role,omitempty"`
+
+	// Peserta (event participant) profile fields — nullable, unused by
+	// non-Peserta users. Kept on this table rather than a separate profile
+	// table by deliberate choice; see the peserta module for the CRUD that
+	// manages them.
+	Title                   *string             `gorm:"type:varchar(10)" json:"title"`
+	FirstName               *string             `gorm:"type:varchar(255)" json:"first_name"`
+	MiddleName              *string             `gorm:"type:varchar(255)" json:"middle_name"`
+	LastName                *string             `gorm:"type:varchar(255)" json:"last_name"`
+	BirthDate               *time.Time          `json:"birth_date"`
+	OriginCityID            *uint64             `gorm:"index" json:"-"`
+	OriginCity              *kota_asal.KotaAsal `gorm:"foreignKey:OriginCityID" json:"origin_city,omitempty"`
+	OriginCityOther         *string             `gorm:"type:varchar(255)" json:"origin_city_other"`
+	NearestAirportID        *uint64             `gorm:"index" json:"-"`
+	NearestAirport          *bandara.Bandara    `gorm:"foreignKey:NearestAirportID" json:"nearest_airport,omitempty"`
+	DietaryRestriction      *string             `gorm:"type:varchar(50)" json:"dietary_restriction"`
+	DietaryRestrictionOther *string             `gorm:"type:varchar(255)" json:"dietary_restriction_other"`
+	PhoneNumber             *string             `gorm:"type:varchar(20)" json:"phone_number"`
+	// KtpNumber is the login identifier ("NIK") — required, unique
+	// (idx_users_ktp_number_active), set at account creation/import and not
+	// user-editable via the website's own onboarding form. NomorKtp is a
+	// separate, optional, non-unique field for the KTP card number as
+	// displayed profile data — the two are legally the same number in
+	// Indonesia, but this app deliberately keeps them as distinct fields.
+	KtpNumber      *string    `gorm:"type:varchar(30)" json:"ktp_number"`
+	NomorKtp       *string    `gorm:"type:varchar(30)" json:"nomor_ktp"`
+	KtpFile        *string    `gorm:"type:varchar(255)" json:"ktp_file"`
+	PassportNumber *string    `gorm:"type:varchar(30)" json:"passport_number"`
+	PassportExpiry *time.Time `json:"passport_expiry"`
+	JacketSize     *string    `gorm:"type:varchar(10)" json:"jacket_size"`
+	PoloSize       *string    `gorm:"type:varchar(10)" json:"polo_size"`
+	// NomorMeja (table number) is assigned by an admin (manual entry or
+	// Excel import) for event seating — deliberately not part of
+	// SelfProfileInput/selfProfileRequest, so a participant can't set their
+	// own table number via the website's self-service profile form.
+	NomorMeja *string `gorm:"type:varchar(20)" json:"nomor_meja"`
+	// AttendanceStatus consolidates the attendance answer and form/shirt
+	// completeness into a single field (see modules/peserta status
+	// constants) rather than deriving a display status from
+	// attendance-answer + completeness-of-several-other-fields on every
+	// read. nil for non-Peserta users; nil is also treated as
+	// "belum_konfirmasi" by readers, matching a freshly seeded/created
+	// peserta that hasn't logged into the website yet.
+	AttendanceStatus *string `gorm:"type:varchar(30)" json:"attendance_status"`
 }
 
 func (User) TableName() string { return "users" }

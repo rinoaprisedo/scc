@@ -6,6 +6,10 @@ import ProtectedRoute from './ProtectedRoute'
 import Login from '../pages/auth/Login'
 import Dashboard from '../pages/dashboard/Dashboard'
 import Users from '../pages/users/Users'
+import Peserta from '../pages/peserta/Peserta'
+import KotaAsal from '../pages/kota_asal/KotaAsal'
+import Bandara from '../pages/bandara/Bandara'
+import QrGate from '../pages/qr_gate/QrGate'
 import Menus from '../pages/menus/Menus'
 import MenuSections from '../pages/menu_sections/MenuSections'
 import Roles from '../pages/roles/Roles'
@@ -40,6 +44,38 @@ function AppRouter() {
           element={
             <ProtectedRoute menuKey="users">
               <Users />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/peserta"
+          element={
+            <ProtectedRoute menuKey="peserta">
+              <Peserta />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/kota-asal"
+          element={
+            <ProtectedRoute menuKey="kota-asal">
+              <KotaAsal />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bandara"
+          element={
+            <ProtectedRoute menuKey="bandara">
+              <Bandara />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/qr-gate"
+          element={
+            <ProtectedRoute menuKey="qr-gate">
+              <QrGate />
             </ProtectedRoute>
           }
         />

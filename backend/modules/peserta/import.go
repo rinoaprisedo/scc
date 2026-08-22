@@ -1,0 +1,591 @@
+package peserta
+
+import (
+	"errors"
+	"fmt"
+	"mime/multipart"
+	"net/http"
+	"regexp"
+	"strings"
+	"time"
+
+	"baseadmin/backend/modules/activity_logs"
+	"baseadmin/backend/modules/users"
+	"baseadmin/backend/utils"
+
+	"github.com/gin-gonic/gin"
+	"github.com/xuri/excelize/v2"
+	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
+)
+
+// defaultImportPassword mirrors PesertaFormModal's DEFAULT_PASSWORD on the
+// admin frontend — every imported row gets this same password rather than
+// a per-row column, matching the request that import skip password (and
+// KTP photo, which can't meaningfully come from a spreadsheet cell anyway).
+const defaultImportPassword = "scc2026"
+
+// importColumnDefs is the single source of truth for the import template's
+// header row AND how those headers map back to fields when a filled-in
+// template is re-uploaded — keeping both in sync by construction rather
+// than by two lists an editor has to remember to update together.
+// exportColumns (export.go) reuses these same headers, so an exported file
+// can be edited and re-imported as-is. There is no "Status" column here —
+// every imported peserta is always created active, so there's nothing for
+// the sheet to carry.
+var importColumnDefs = []struct {
+	Header string
+	Field  string
+}{
+	{"Name", "name"},
+	{"NIK", "nik"},
+	{"Nomor KTP", "nomor_ktp"},
+	{"Email", "email"},
+	{"Title", "title"},
+	{"Nama Depan", "first_name"},
+	{"Nama Tengah", "middle_name"},
+	{"Nama Belakang", "last_name"},
+	{"Tanggal Lahir (YYYY-MM-DD)", "birth_date"},
+	{"Kota Asal", "origin_city"},
+	{"Bandara Terdekat", "nearest_airport"},
+	{"Pantangan Makanan", "dietary_restriction"},
+	{"Pantangan Makanan Lainnya", "dietary_restriction_other"},
+	{"Nomor HP", "phone_number"},
+	{"Nomor Passport", "passport_number"},
+	{"Masa Berlaku Passport (YYYY-MM-DD)", "passport_expiry"},
+	{"Jacket Size", "jacket_size"},
+	{"Polo Size", "polo_size"},
+	{"Nomor Meja", "nomor_meja"},
+}
+
+var importHeaderToField = func() map[string]string {
+	m := make(map[string]string, len(importColumnDefs))
+	for _, c := range importColumnDefs {
+		m[strings.ToLower(c.Header)] = c.Field
+	}
+	return m
+}()
+
+// importTitleOptions/importDietaryOptions/importSizeOptions mirror the
+// dropdown choices in PesertaFormModal.jsx on the admin frontend — kept in
+// sync by hand since one lives in Go and the other in JS. Used both to
+// populate the template's Excel data-validation dropdowns and to reject a
+// re-uploaded row whose value doesn't match any of them (e.g. pasted over
+// the dropdown, or edited outside Excel).
+var importTitleOptions = []string{"Mr", "Mrs", "Ms"}
+var importDietaryOptions = []string{"Tidak Ada", "Vegetarian", "Vegan", "Alergi Seafood", "Other"}
+var importSizeOptions = []string{"S", "M", "L", "XL", "XXL", "XXXL"}
+
+var importEmailRegex = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
+
+// importDigitsRegex backs NIK/Nomor KTP format validation — both are
+// Indonesian ID numbers, digits only.
+var importDigitsRegex = regexp.MustCompile(`^[0-9]+$`)
+
+func containsOptionFold(options []string, v string) bool {
+	for _, o := range options {
+		if strings.EqualFold(o, v) {
+			return true
+		}
+	}
+	return false
+}
+
+type ImportRowError struct {
+	Row     int    `json:"row"`
+	Message string `json:"message"`
+}
+
+// ImportPreview is the read-only dry-run result — how many data rows the
+// sheet has, how many would successfully import, and every row that
+// wouldn't (with why). Returned by ValidateImportExcel, called before the
+// real import so the admin can fix the file first; nothing is written to
+// the database to produce this.
+type ImportPreview struct {
+	TotalRows int              `json:"total_rows"`
+	Valid     int              `json:"valid"`
+	Errors    []ImportRowError `json:"errors"`
+}
+
+// ImportResult is the real import's success response — every row in the
+// file either all imports (all-or-nothing, see ImportExcel) or none do, so
+// there's nothing left to report per row on success.
+type ImportResult struct {
+	Created int `json:"created"`
+}
+
+// preparedRow is one fully-validated, ready-to-insert row. NewAirportName
+// is set instead of resolving/creating the bandara row immediately — doing
+// that write only happens once every row in the file has passed validation
+// (see ImportExcel), so a validation-only pass never mutates master data.
+type preparedRow struct {
+	RowNum         int
+	User           users.User
+	NewAirportName string
+}
+
+func allBlank(values map[string]string) bool {
+	for _, v := range values {
+		if v != "" {
+			return false
+		}
+	}
+	return true
+}
+
+// prepareImportRows parses and validates every data row in the uploaded
+// sheet without writing anything to the database — shared by
+// ValidateImportExcel (the dry-run preview) and ImportExcel (the real
+// import re-validates from scratch before committing, since duplicate
+// NIK/email checks against the DB could go stale between preview and
+// confirm). A row that fails validation is recorded in rowErrors and
+// otherwise skipped; totalRows counts every non-blank data row seen,
+// valid or not.
+func (s *Service) prepareImportRows(f *excelize.File) (prepared []preparedRow, rowErrors []ImportRowError, totalRows int, err error) {
+	sheet := f.GetSheetName(0)
+	rows, err := f.GetRows(sheet)
+	if err != nil || len(rows) == 0 {
+		return nil, nil, 0, errors.New("sheet is empty")
+	}
+
+	// rowErrors starts as an empty (non-nil) slice rather than the zero-value
+	// nil so a clean file's response is JSON "errors": [] — the frontend
+	// always does preview.errors.length, and Go's encoding/json renders a
+	// nil slice as null, which would crash that read.
+	rowErrors = []ImportRowError{}
+
+	fieldByCol := map[int]string{}
+	for i, header := range rows[0] {
+		if field, ok := importHeaderToField[strings.ToLower(strings.TrimSpace(header))]; ok {
+			fieldByCol[i] = field
+		}
+	}
+
+	roleID, err := s.repo.PesertaRoleID()
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	hashedDefault, err := bcrypt.GenerateFromPassword([]byte(defaultImportPassword), 12)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+
+	seenNIK := map[string]int{}
+	seenEmail := map[string]int{}
+
+	for i, row := range rows[1:] {
+		rowNum := i + 2 // 1-indexed, plus the header row
+		values := map[string]string{}
+		for col, cell := range row {
+			if field, ok := fieldByCol[col]; ok {
+				values[field] = strings.TrimSpace(cell)
+			}
+		}
+		if allBlank(values) {
+			continue // a fully empty trailing row isn't a data row at all
+		}
+		totalRows++
+
+		if values["name"] == "" || values["nik"] == "" {
+			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Name and NIK are required"})
+			continue
+		}
+
+		nik := values["nik"]
+		if !importDigitsRegex.MatchString(nik) {
+			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "NIK must contain digits only"})
+			continue
+		}
+		if prevRow, ok := seenNIK[nik]; ok {
+			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: fmt.Sprintf("Duplicate NIK — already used in row %d of this file", prevRow)})
+			continue
+		}
+		nikExists, err := s.repo.NIKExists(nik)
+		if err != nil {
+			return nil, nil, 0, err
+		}
+		if nikExists {
+			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "NIK is already registered"})
+			continue
+		}
+
+		email := values["email"]
+		if email != "" && !importEmailRegex.MatchString(email) {
+			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Email format is invalid"})
+			continue
+		}
+		if email == "" {
+			email = nik + placeholderEmailDomain
+		}
+		emailKey := strings.ToLower(email)
+		if prevRow, ok := seenEmail[emailKey]; ok {
+			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: fmt.Sprintf("Duplicate email — already used in row %d of this file", prevRow)})
+			continue
+		}
+		emailExists, err := s.repo.EmailExists(email)
+		if err != nil {
+			return nil, nil, 0, err
+		}
+		if emailExists {
+			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Email is already registered"})
+			continue
+		}
+
+		if values["title"] != "" && !containsOptionFold(importTitleOptions, values["title"]) {
+			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Title must be one of: " + strings.Join(importTitleOptions, ", ")})
+			continue
+		}
+		if values["dietary_restriction"] != "" && !containsOptionFold(importDietaryOptions, values["dietary_restriction"]) {
+			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Pantangan Makanan must be one of: " + strings.Join(importDietaryOptions, ", ")})
+			continue
+		}
+		if values["jacket_size"] != "" && !containsOptionFold(importSizeOptions, values["jacket_size"]) {
+			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Jacket Size must be one of: " + strings.Join(importSizeOptions, ", ")})
+			continue
+		}
+		if values["polo_size"] != "" && !containsOptionFold(importSizeOptions, values["polo_size"]) {
+			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Polo Size must be one of: " + strings.Join(importSizeOptions, ", ")})
+			continue
+		}
+
+		if values["nomor_ktp"] != "" && !importDigitsRegex.MatchString(values["nomor_ktp"]) {
+			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Nomor KTP must contain digits only"})
+			continue
+		}
+
+		// parseDate silently returns nil on anything it can't parse — fine
+		// for a truly blank cell, but a malformed one (wrong format, stray
+		// text) must not just quietly vanish into a null column value.
+		var birthDate *time.Time
+		if values["birth_date"] != "" {
+			birthDate = parseDate(values["birth_date"])
+			if birthDate == nil {
+				rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Tanggal Lahir must be in YYYY-MM-DD format"})
+				continue
+			}
+		}
+		var passportExpiry *time.Time
+		if values["passport_expiry"] != "" {
+			passportExpiry = parseDate(values["passport_expiry"])
+			if passportExpiry == nil {
+				rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Masa Berlaku Passport must be in YYYY-MM-DD format"})
+				continue
+			}
+		}
+
+		// Unlike the admin/website form (which has an explicit "Other" choice
+		// backed by OriginCityOther free text), the import sheet's Kota Asal
+		// column only offers a dropdown of real master data — so a value
+		// that doesn't match one of those options is treated as a mistake
+		// (typo, stale copy-paste) and rejected, not silently stored as
+		// free-text "Other".
+		var cityID *uint64
+		if values["origin_city"] != "" {
+			cityID, err = s.repo.FindCityIDByName(values["origin_city"])
+			if err != nil {
+				return nil, nil, 0, err
+			}
+			if cityID == nil {
+				rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Kota Asal must match one of the dropdown options"})
+				continue
+			}
+		}
+
+		var airportID *uint64
+		newAirportName := ""
+		if values["nearest_airport"] != "" {
+			airportID, err = s.repo.FindAirportIDByName(values["nearest_airport"])
+			if err != nil {
+				return nil, nil, 0, err
+			}
+			if airportID == nil {
+				newAirportName = values["nearest_airport"]
+			}
+		}
+
+		seenNIK[nik] = rowNum
+		seenEmail[emailKey] = rowNum
+
+		attendanceStatus := StatusBelumKonfirmasi
+		user := users.User{
+			Name:                    values["name"],
+			Email:                   email,
+			Password:                string(hashedDefault),
+			Status:                  users.StatusActive,
+			RoleID:                  &roleID,
+			AttendanceStatus:        &attendanceStatus,
+			Title:                   ptrOrNil(values["title"]),
+			FirstName:               ptrOrNil(values["first_name"]),
+			MiddleName:              ptrOrNil(values["middle_name"]),
+			LastName:                ptrOrNil(values["last_name"]),
+			BirthDate:               birthDate,
+			OriginCityID:            cityID,
+			NearestAirportID:        airportID,
+			DietaryRestriction:      ptrOrNil(values["dietary_restriction"]),
+			DietaryRestrictionOther: ptrOrNil(values["dietary_restriction_other"]),
+			PhoneNumber:             ptrOrNil(values["phone_number"]),
+			KtpNumber:               ptrOrNil(nik),
+			NomorKtp:                ptrOrNil(values["nomor_ktp"]),
+			PassportNumber:          ptrOrNil(values["passport_number"]),
+			PassportExpiry:          passportExpiry,
+			JacketSize:              ptrOrNil(values["jacket_size"]),
+			PoloSize:                ptrOrNil(values["polo_size"]),
+			NomorMeja:               ptrOrNil(values["nomor_meja"]),
+		}
+
+		prepared = append(prepared, preparedRow{RowNum: rowNum, User: user, NewAirportName: newAirportName})
+	}
+
+	return prepared, rowErrors, totalRows, nil
+}
+
+// ValidateImportExcel is the dry-run preview behind the admin frontend's
+// "verify before import" step — parses and validates the file exactly like
+// ImportExcel would, but never opens a transaction or writes anything.
+func (s *Service) ValidateImportExcel(file multipart.File) (*ImportPreview, error) {
+	f, err := excelize.OpenReader(file)
+	if err != nil {
+		return nil, errors.New("invalid Excel file")
+	}
+	defer f.Close()
+
+	prepared, rowErrors, totalRows, err := s.prepareImportRows(f)
+	if err != nil {
+		return nil, err
+	}
+	return &ImportPreview{TotalRows: totalRows, Valid: len(prepared), Errors: rowErrors}, nil
+}
+
+// ImportExcel parses an uploaded .xlsx and creates one Peserta per data row,
+// all inside a single transaction. Unlike a per-row-independent import, this
+// is deliberately all-or-nothing: if even one row fails validation, nothing
+// in the file is created — rowErrors is returned instead so the caller can
+// show exactly which rows/why, matching the admin frontend's "fix the whole
+// file, then import" flow rather than a partial import silently skipping
+// bad rows.
+func (s *Service) ImportExcel(file multipart.File, actorID *uint64) (*ImportResult, []ImportRowError, error) {
+	f, err := excelize.OpenReader(file)
+	if err != nil {
+		return nil, nil, errors.New("invalid Excel file")
+	}
+	defer f.Close()
+
+	prepared, rowErrors, _, err := s.prepareImportRows(f)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(rowErrors) > 0 {
+		return nil, rowErrors, nil
+	}
+	if len(prepared) == 0 {
+		return nil, nil, errors.New("no data rows to import")
+	}
+
+	// Two rows can reference the same not-yet-existing airport name; dedupe
+	// within this batch so it isn't created twice inside one transaction.
+	createdAirports := map[string]uint64{}
+	err = s.repo.DB.Transaction(func(tx *gorm.DB) error {
+		for i := range prepared {
+			p := &prepared[i]
+			if p.NewAirportName != "" {
+				key := strings.ToLower(p.NewAirportName)
+				if id, ok := createdAirports[key]; ok {
+					p.User.NearestAirportID = &id
+				} else {
+					id, err := s.repo.CreateAirportTx(tx, p.NewAirportName, actorID)
+					if err != nil {
+						return fmt.Errorf("row %d: failed to create Bandara Terdekat: %w", p.RowNum, err)
+					}
+					createdAirports[key] = *id
+					p.User.NearestAirportID = id
+				}
+			}
+			p.User.CreatedBy = actorID
+			if err := tx.Create(&p.User).Error; err != nil {
+				return fmt.Errorf("row %d: %w", p.RowNum, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &ImportResult{Created: len(prepared)}, nil, nil
+}
+
+// AllCityNames/AllAirportNames back the import template's dropdown columns
+// — thin delegations so the handler doesn't need to reach past Service into
+// repo directly.
+func (s *Service) AllCityNames() ([]string, error)    { return s.repo.AllCityNames() }
+func (s *Service) AllAirportNames() ([]string, error) { return s.repo.AllAirportNames() }
+
+// importListSheet is a hidden helper sheet on the generated template
+// holding the full Kota Asal/Bandara Terdekat name lists — Excel's inline
+// dropdown list (SetDropList) is capped at 255 characters, too short for
+// real master data, so those two columns' data validation instead
+// references a range on this sheet (SetSqrefDropList).
+const importListSheet = "Lists"
+
+const importTemplateMaxRow = 1000
+
+// addDropdown attaches an inline-list dropdown (short, fixed option sets)
+// to every data row of one template column.
+func addDropdown(f *excelize.File, sheet string, colIndex int, options []string) {
+	col, err := excelize.ColumnNumberToName(colIndex + 1)
+	if err != nil {
+		return
+	}
+	dv := excelize.NewDataValidation(true)
+	dv.Sqref = fmt.Sprintf("%s2:%s%d", col, col, importTemplateMaxRow)
+	if err := dv.SetDropList(options); err != nil {
+		return
+	}
+	_ = f.AddDataValidation(sheet, dv)
+}
+
+// addRefDropdown attaches a dropdown sourced from a range on the hidden
+// helper sheet — used for the two columns backed by DB master data
+// (Kota Asal/Bandara Terdekat), which can be far longer than the 255-char
+// inline list limit allows.
+func addRefDropdown(f *excelize.File, sheet string, colIndex int, listCol string, count int) {
+	if count == 0 {
+		return
+	}
+	col, err := excelize.ColumnNumberToName(colIndex + 1)
+	if err != nil {
+		return
+	}
+	dv := excelize.NewDataValidation(true)
+	dv.Sqref = fmt.Sprintf("%s2:%s%d", col, col, importTemplateMaxRow)
+	dv.SetSqrefDropList(fmt.Sprintf("%s!$%s$1:$%s$%d", importListSheet, listCol, listCol, count))
+	_ = f.AddDataValidation(sheet, dv)
+}
+
+// ImportTemplate godoc
+// @Summary		Download the peserta Excel import template
+// @Tags			peserta
+// @Security		SessionCookie
+// @Produce		application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+// @Success		200
+// @Router			/peserta/import/template [get]
+func (h *Handler) ImportTemplate(c *gin.Context) {
+	cityNames, err := h.Service.AllCityNames()
+	if err != nil {
+		utils.Error(c, 500, "failed to build import template")
+		return
+	}
+	airportNames, err := h.Service.AllAirportNames()
+	if err != nil {
+		utils.Error(c, 500, "failed to build import template")
+		return
+	}
+
+	f := excelize.NewFile()
+	defer f.Close()
+	const sheet = "Peserta"
+	f.SetSheetName("Sheet1", sheet)
+
+	colIndex := map[string]int{}
+	for i, col := range importColumnDefs {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		f.SetCellValue(sheet, cell, col.Header)
+		colIndex[col.Field] = i
+	}
+
+	if _, err := f.NewSheet(importListSheet); err != nil {
+		utils.Error(c, 500, "failed to build import template")
+		return
+	}
+	for i, name := range cityNames {
+		cell, _ := excelize.CoordinatesToCellName(1, i+1)
+		f.SetCellValue(importListSheet, cell, name)
+	}
+	for i, name := range airportNames {
+		cell, _ := excelize.CoordinatesToCellName(2, i+1)
+		f.SetCellValue(importListSheet, cell, name)
+	}
+	_ = f.SetSheetVisible(importListSheet, false)
+
+	addDropdown(f, sheet, colIndex["title"], importTitleOptions)
+	addDropdown(f, sheet, colIndex["dietary_restriction"], importDietaryOptions)
+	addDropdown(f, sheet, colIndex["jacket_size"], importSizeOptions)
+	addDropdown(f, sheet, colIndex["polo_size"], importSizeOptions)
+	addRefDropdown(f, sheet, colIndex["origin_city"], "A", len(cityNames))
+	addRefDropdown(f, sheet, colIndex["nearest_airport"], "B", len(airportNames))
+
+	c.Header("Content-Disposition", "attachment; filename=peserta_import_template.xlsx")
+	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	if err := f.Write(c.Writer); err != nil {
+		c.Status(http.StatusInternalServerError)
+	}
+}
+
+// ValidateImport godoc
+// @Summary		Dry-run validate an Excel file before importing peserta
+// @Tags			peserta
+// @Security		SessionCookie
+// @Accept			multipart/form-data
+// @Param			file	formData	file	true	"Excel file (.xlsx)"
+// @Success		200		{object}	utils.Response
+// @Failure		400		{object}	utils.Response
+// @Router			/peserta/import/validate [post]
+func (h *Handler) ValidateImport(c *gin.Context) {
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		utils.Error(c, 400, "file is required")
+		return
+	}
+	file, err := fileHeader.Open()
+	if err != nil {
+		utils.Error(c, 400, "failed to read uploaded file")
+		return
+	}
+	defer file.Close()
+
+	preview, err := h.Service.ValidateImportExcel(file)
+	if err != nil {
+		utils.Error(c, 400, err.Error())
+		return
+	}
+	utils.Success(c, 200, "validation completed", preview)
+}
+
+// ImportExcel godoc
+// @Summary		Bulk-import peserta from an Excel file (all-or-nothing)
+// @Tags			peserta
+// @Security		SessionCookie
+// @Accept			multipart/form-data
+// @Param			file	formData	file	true	"Excel file (.xlsx)"
+// @Success		200		{object}	utils.Response
+// @Failure		400		{object}	utils.Response
+// @Router			/peserta/import [post]
+func (h *Handler) ImportExcel(c *gin.Context) {
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		utils.Error(c, 400, "file is required")
+		return
+	}
+	file, err := fileHeader.Open()
+	if err != nil {
+		utils.Error(c, 400, "failed to read uploaded file")
+		return
+	}
+	defer file.Close()
+
+	actorID := utils.CurrentUserID(c)
+	result, rowErrors, err := h.Service.ImportExcel(file, actorID)
+	if err != nil {
+		utils.Error(c, 400, err.Error())
+		return
+	}
+	if len(rowErrors) > 0 {
+		c.JSON(400, utils.Response{Success: false, Message: "import cancelled — some rows are invalid", Data: gin.H{"errors": rowErrors}})
+		return
+	}
+
+	activity_logs.LogActivity(actorID, activity_logs.ActionCreate, "peserta", "",
+		nil, gin.H{"import_created": result.Created},
+		c.ClientIP(), c.Request.UserAgent())
+	utils.Success(c, 200, "import completed", result)
+}

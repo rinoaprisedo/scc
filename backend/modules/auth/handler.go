@@ -74,6 +74,50 @@ func (h *Handler) Login(c *gin.Context) {
 	utils.Success(c, 200, "login successful", h.profileResponse(result.User))
 }
 
+type pesertaLoginRequest struct {
+	NIK      string `json:"nik" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+// PesertaLogin godoc
+// @Summary		Log in with NIK + password (peserta website) and start a session
+// @Tags			auth
+// @Param			body	body		pesertaLoginRequest	true	"Credentials"
+// @Success		200		{object}	utils.Response
+// @Failure		401		{object}	utils.Response
+// @Router			/auth/peserta-login [post]
+func (h *Handler) PesertaLogin(c *gin.Context) {
+	var req pesertaLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, 400, "invalid request payload")
+		return
+	}
+
+	result, err := h.Service.PesertaLogin(req.NIK, req.Password, c.ClientIP(), c.Request.UserAgent())
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrAccountInactive):
+			utils.Error(c, 403, err.Error())
+		case errors.Is(err, ErrNotPeserta):
+			utils.Error(c, 403, err.Error())
+		default:
+			middleware.RegisterLoginFailure(c, h.Redis)
+			activity_logs.LogActivity(nil, activity_logs.ActionLogin, "auth", "", nil, gin.H{"nik": req.NIK, "result": "failed"}, c.ClientIP(), c.Request.UserAgent())
+			utils.Error(c, 401, "invalid NIK or password")
+		}
+		return
+	}
+
+	secure := h.Cfg.AppEnv == "production"
+	c.SetSameSite(3) // strict
+	c.SetCookie(session.CookieName, result.Token, h.Cfg.SessionMaxAge, "/", "", secure, true)
+
+	middleware.ClearLoginFailures(c, h.Redis)
+	activity_logs.LogActivity(&result.User.ID, activity_logs.ActionLogin, "auth", result.User.UUID.String(), nil, gin.H{"result": "success"}, c.ClientIP(), c.Request.UserAgent())
+
+	utils.Success(c, 200, "login successful", h.profileResponse(result.User))
+}
+
 // Logout godoc
 // @Summary		Log out and clear the session
 // @Tags			auth
@@ -123,6 +167,28 @@ func (h *Handler) profileResponse(u *users.User) gin.H {
 		"roles":         roleNames,
 		"is_superadmin": isSuperadmin,
 		"permissions":   perms,
+		// Peserta profile fields — nil for non-Peserta users. Exposed here
+		// (rather than only via the admin-gated /peserta endpoints) so the
+		// participant website can drive its own onboarding gate off /auth/me.
+		"title":                     u.Title,
+		"first_name":                u.FirstName,
+		"middle_name":               u.MiddleName,
+		"last_name":                 u.LastName,
+		"birth_date":                u.BirthDate,
+		"origin_city":               u.OriginCity,
+		"origin_city_other":         u.OriginCityOther,
+		"nearest_airport":           u.NearestAirport,
+		"dietary_restriction":       u.DietaryRestriction,
+		"dietary_restriction_other": u.DietaryRestrictionOther,
+		"phone_number":              u.PhoneNumber,
+		"ktp_number":                u.KtpNumber,
+		"nomor_ktp":                 u.NomorKtp,
+		"ktp_file":                  u.KtpFile,
+		"passport_number":           u.PassportNumber,
+		"passport_expiry":           u.PassportExpiry,
+		"jacket_size":               u.JacketSize,
+		"polo_size":                 u.PoloSize,
+		"attendance_status":         u.AttendanceStatus,
 	}
 }
 
