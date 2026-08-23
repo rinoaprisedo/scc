@@ -9,3 +9,7 @@ backend/baseadmin
 backend/docs/
 *.log
 .DS_Store
+
+deploy/
+frontend/.env.production
+website/.env.production

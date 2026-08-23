@@ -9,9 +9,10 @@ import (
 )
 
 type Config struct {
-	AppEnv      string
-	AppPort     string
-	FrontendURL string
+	AppEnv       string
+	AppPort      string
+	FrontendURL  string
+	CookieDomain string
 
 	DBDriver string
 	DBHost   string
@@ -53,9 +54,10 @@ func Load() *Config {
 	}
 
 	Cfg = &Config{
-		AppEnv:      getEnv("APP_ENV", "development"),
-		AppPort:     getEnv("APP_PORT", "8500"),
-		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:8501,http://localhost:8502"),
+		AppEnv:       getEnv("APP_ENV", "development"),
+		AppPort:      getEnv("APP_PORT", "8500"),
+		FrontendURL:  getEnv("FRONTEND_URL", "http://localhost:8501,http://localhost:8502"),
+		CookieDomain: getEnv("COOKIE_DOMAIN", ""),
 
 		DBDriver: getEnv("DB_DRIVER", "postgres"),
 		DBHost:   getEnv("DB_HOST", "localhost"),

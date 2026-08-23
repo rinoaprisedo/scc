@@ -74,7 +74,7 @@ func main() {
 	router.Use(middleware.CORSMiddleware(cfg.FrontendURL))
 	router.Use(middleware.SecurityHeaders())
 	router.Use(middleware.RequestSizeLimit(10 << 20))
-	router.Use(middleware.CSRF(cfg.AppEnv == "production"))
+	router.Use(middleware.CSRF(cfg.AppEnv == "production", cfg.CookieDomain))
 	router.Use(middleware.XSSSanitizer())
 	router.Use(middleware.MaintenanceMode(rdb, db))
 	router.Use(middleware.RateLimit(rdb, "api", cfg.RateLimitAPI, time.Minute, func(c *gin.Context) string { return c.ClientIP() }))

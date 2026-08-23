@@ -1,0 +1,6 @@
+docs
+baseadmin
+.env
+storage/uploads
+*.log
+.git
