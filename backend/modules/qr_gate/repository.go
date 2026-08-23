@@ -93,16 +93,23 @@ func (r *Repository) CreateScanTx(tx *gorm.DB, scan *QrGateScan) error {
 	return tx.Create(scan).Error
 }
 
+// unscopedPreload drops GORM's default soft-delete scope on a preloaded
+// association — QrGateScan is an append-only ledger (see its doc comment),
+// so a scan's attribution shouldn't go blank just because the QrGate or User
+// it points to was later soft-deleted; without this, Preload silently loads
+// a zero-value struct (empty name) for a deleted row instead of erroring.
+func unscopedPreload(db *gorm.DB) *gorm.DB { return db.Unscoped() }
+
 // ListScansForGate backs the admin "who scanned this gate" view.
 func (r *Repository) ListScansForGate(gateID uint64) ([]QrGateScan, error) {
 	var list []QrGateScan
-	err := r.DB.Preload("User").Where("qr_gate_id = ?", gateID).Order("created_at desc").Find(&list).Error
+	err := r.DB.Preload("User", unscopedPreload).Where("qr_gate_id = ?", gateID).Order("created_at desc").Find(&list).Error
 	return list, err
 }
 
 // ListScansForUser backs the participant's own scan history.
 func (r *Repository) ListScansForUser(userID uint64) ([]QrGateScan, error) {
 	var list []QrGateScan
-	err := r.DB.Preload("QrGate").Where("user_id = ?", userID).Order("created_at desc").Find(&list).Error
+	err := r.DB.Preload("QrGate", unscopedPreload).Where("user_id = ?", userID).Order("created_at desc").Find(&list).Error
 	return list, err
 }

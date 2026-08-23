@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Plus, Pencil, Trash2, Eye, Trophy, MoreHorizontal, FileSpreadsheet, FileText, FileUp, FileDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, Eye, Trophy, MoreHorizontal, FileSpreadsheet, FileText, FileUp, FileDown, FileArchive } from 'lucide-react'
+import { format } from 'date-fns'
 import Table from '../../components/ui/Table'
 import Badge from '../../components/ui/Badge'
 import { Menubar, MenubarAction, MenubarMenu, MenubarItem, MenubarLabel, MenubarSeparator } from '../../components/ui/Menubar'
@@ -18,6 +19,7 @@ import {
   uploadPesertaKtp,
   exportPesertaCsv,
   exportPesertaExcel,
+  exportPesertaKtpZip,
   downloadPesertaImportTemplate,
   validatePesertaImport,
   importPesertaExcel,
@@ -179,6 +181,12 @@ function Peserta() {
     },
     { key: 'total_points', label: 'Total Points', render: (row) => row.total_points ?? 0 },
     {
+      key: 'last_login_at',
+      label: 'Last Login',
+      sortable: true,
+      render: (row) => (row.last_login_at ? format(new Date(row.last_login_at), 'PP p') : 'Never'),
+    },
+    {
       key: 'actions',
       label: '',
       render: (row) => (
@@ -252,6 +260,17 @@ function Peserta() {
                 toast.promise(exportPesertaCsv({ search }), {
                   loading: 'Exporting...',
                   success: 'CSV file downloaded',
+                  error: 'Export failed',
+                })
+              }
+            />
+            <MenubarItem
+              label="Export KTP (ZIP)"
+              icon={FileArchive}
+              onClick={() =>
+                toast.promise(exportPesertaKtpZip({ search }), {
+                  loading: 'Exporting...',
+                  success: 'KTP ZIP downloaded',
                   error: 'Export failed',
                 })
               }

@@ -28,13 +28,21 @@ type Config struct {
 	SessionMaxAge        int
 	SessionMaxConcurrent int
 
-	StoragePath    string
 	StorageMaxSize int64
+
+	S3Endpoint  string
+	S3Region    string
+	S3AccessKey string
+	S3SecretKey string
+	S3Bucket    string
 
 	LogCleanupDays           int
 	RateLimitLogin           int
 	RateLimitLoginLockoutMin int
 	RateLimitAPI             int
+
+	AnthropicAPIKey string
+	AnthropicModel  string
 }
 
 var Cfg *Config
@@ -64,13 +72,21 @@ func Load() *Config {
 		SessionMaxAge:        getEnvInt("SESSION_MAX_AGE", 86400),
 		SessionMaxConcurrent: getEnvInt("SESSION_MAX_CONCURRENT", 3),
 
-		StoragePath:    getEnv("STORAGE_PATH", "./storage/uploads"),
 		StorageMaxSize: int64(getEnvInt("STORAGE_MAX_SIZE", 2097152)),
+
+		S3Endpoint:  getEnv("S3_ENDPOINT", ""),
+		S3Region:    getEnv("S3_REGION", ""),
+		S3AccessKey: getEnv("S3_ACCESS_KEY", ""),
+		S3SecretKey: getEnv("S3_SECRET_KEY", ""),
+		S3Bucket:    getEnv("S3_BUCKET", ""),
 
 		LogCleanupDays:           getEnvInt("LOG_CLEANUP_DAYS", 90),
 		RateLimitLogin:           getEnvInt("RATE_LIMIT_LOGIN", 5),
 		RateLimitLoginLockoutMin: getEnvInt("RATE_LIMIT_LOGIN_LOCKOUT_MINUTES", 15),
 		RateLimitAPI:             getEnvInt("RATE_LIMIT_API", 100),
+
+		AnthropicAPIKey: getEnv("ANTHROPIC_API_KEY", ""),
+		AnthropicModel:  getEnv("ANTHROPIC_MODEL", "claude-opus-5"),
 	}
 
 	return Cfg

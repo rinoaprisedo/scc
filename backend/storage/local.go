@@ -66,6 +66,10 @@ func (s *LocalStorage) Upload(file multipart.File, header *multipart.FileHeader,
 	return filepath.ToSlash(relPath), nil
 }
 
+func (s *LocalStorage) Open(path string) (io.ReadCloser, error) {
+	return os.Open(filepath.Join(s.BasePath, path))
+}
+
 func (s *LocalStorage) Delete(path string) error {
 	full := filepath.Join(s.BasePath, path)
 	if err := os.Remove(full); err != nil && !os.IsNotExist(err) {

@@ -73,6 +73,25 @@ export const qrGateSchema = z.object({
   is_reusable: z.boolean().optional(),
 })
 
+export const qrisCrossBorderSchema = z.object({
+  peserta_uuid: z.string().min(1, 'Peserta is required'),
+  // Nominal/merchant/reference/status are all filled in by the async OCR
+  // job after create, not entered up front — see QrisCrossBorderFormModal.
+  nominal_asing: z
+    .union([z.string(), z.number()])
+    .refine((v) => v === '' || (!Number.isNaN(Number(v)) && Number(v) >= 0), 'Must be 0 or more')
+    .optional()
+    .or(z.literal('')),
+  nominal_rupiah: z
+    .union([z.string(), z.number()])
+    .refine((v) => v === '' || (!Number.isNaN(Number(v)) && Number(v) >= 0), 'Must be 0 or more')
+    .optional()
+    .or(z.literal('')),
+  merchant_name: z.string().optional().or(z.literal('')),
+  reference_number: z.string().optional().or(z.literal('')),
+  status: z.enum(['pending', 'waiting_approval', 'approved', 'rejected']).optional(),
+})
+
 export const pesertaSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   // Email is optional — NIK (ktp_number) is the required identifier for

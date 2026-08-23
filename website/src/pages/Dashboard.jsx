@@ -27,11 +27,12 @@ import ContentPreviewModal from '../components/ContentPreviewModal'
 import AlertModal from '../components/AlertModal'
 import ScannerModal from '../components/ScannerModal'
 import HistoryScannerModal from '../components/HistoryScannerModal'
+import QrisCrossBorderModal from '../components/QrisCrossBorderModal'
 import { isFormComplete } from '../utils/onboarding'
 import { isPastDeadline } from '../utils/deadline'
-import bgDesktop from '../assets/Microsite-02.jpg'
-import bgMobile from '../assets/Microsite-01 (1).jpg'
-import danamonLogo from '../assets/Single Logo_Logo White.png'
+import bgDesktop from '../assets/Microsite-02.webp'
+import bgMobile from '../assets/Microsite-01 (1).webp'
+import danamonLogo from '../assets/Single Logo_Logo White.webp'
 import eventBadge from '../assets/Microsite-02.png'
 import lpsLogo from '../assets/logo-lps.avif'
 import bottomStrip from '../assets/Danamon List-05.jpg'
@@ -67,7 +68,7 @@ const MENU_ITEMS = [
     settingKey: 'menu_event_information_enabled',
   },
   { label: 'Dress Code', icon: Shirt, contentKey: 'dress_code_file', settingKey: 'menu_dress_code_enabled' },
-  { label: 'QRIS Cross Border', icon: ListChecks, settingKey: 'menu_qris_cross_border_enabled' },
+  { label: 'QRIS Cross Border', icon: ListChecks, action: 'qris', settingKey: 'menu_qris_cross_border_enabled' },
   {
     label: 'About Malaysia',
     icon: Info,
@@ -140,6 +141,7 @@ function Dashboard() {
   const [alertMessage, setAlertMessage] = useState(null)
   const [scannerOpen, setScannerOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [qrisOpen, setQrisOpen] = useState(false)
   const [totalPoints, setTotalPoints] = useState(0)
 
   const refreshUser = () => getMe().then((res) => setUser(res.data))
@@ -200,9 +202,6 @@ function Dashboard() {
 
           <div className="flex flex-1 flex-col gap-6">
             <div className="relative flex flex-col items-center gap-6 overflow-hidden rounded-2xl border-2 border-gold-light/60 bg-navy p-7 text-center shadow-lg sm:flex-row sm:items-center sm:justify-between sm:p-9 sm:text-left">
-              <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-gold/10" />
-              <div className="pointer-events-none absolute -bottom-14 -left-6 h-32 w-32 rounded-full bg-navy-light" />
-
               <div className="relative flex flex-col items-center gap-3 sm:flex-row sm:items-center sm:gap-5">
                 <div className="hidden h-16 w-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gold-light via-gold to-gold-dark text-2xl font-bold text-navy-dark shadow-md ring-4 ring-gold/20 sm:flex">
                   {user?.name?.charAt(0).toUpperCase() || 'P'}
@@ -259,6 +258,8 @@ function Dashboard() {
                     setScannerOpen(true)
                   } else if (action === 'history') {
                     setHistoryOpen(true)
+                  } else if (action === 'qris') {
+                    setQrisOpen(true)
                   }
                 }
                 return (
@@ -314,6 +315,8 @@ function Dashboard() {
 
       {historyOpen && <HistoryScannerModal onClose={() => setHistoryOpen(false)} />}
 
+      {qrisOpen && <QrisCrossBorderModal onClose={() => setQrisOpen(false)} />}
+
       {viewingProfile && (
         <ProfileModal
           user={user}
@@ -329,7 +332,7 @@ function Dashboard() {
         (registrationClosed ? (
           <NoticeScreen title="Maaf" message="Registrasi sudah ditutup." onLogout={handleLogout} />
         ) : (
-          <AttendanceModal userName={user?.name} onUpdated={refreshUser} />
+          <AttendanceModal userName={user?.name} onUpdated={refreshUser} onLogout={handleLogout} />
         ))}
 
       {stage === 'declined' && (

@@ -10,6 +10,7 @@ import (
 	"baseadmin/backend/modules/menus"
 	"baseadmin/backend/modules/permissions"
 	"baseadmin/backend/modules/qr_gate"
+	"baseadmin/backend/modules/qris_cross_border"
 	"baseadmin/backend/modules/roles"
 	"baseadmin/backend/modules/settings"
 	"baseadmin/backend/modules/users"
@@ -34,6 +35,7 @@ func Run(db *gorm.DB) {
 		&activity_logs.ActivityLog{},
 		&qr_gate.QrGate{},
 		&qr_gate.QrGateScan{},
+		&qris_cross_border.QrisCrossBorder{},
 	)
 	if err != nil {
 		log.Fatalf("migration failed: %v", err)
@@ -81,6 +83,9 @@ func applyPartialUniqueIndexes(db *gorm.DB) {
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_ktp_number_active ON users (ktp_number) WHERE deleted_at IS NULL`,
 		// The scanned code must resolve to exactly one active gate.
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_qr_gates_code_active ON qr_gates (code) WHERE deleted_at IS NULL`,
+		// Second line of defense against duplicate QRIS submissions, behind
+		// the application-level check in qris_cross_border's OCR job.
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_qris_cross_borders_reference_number_active ON qris_cross_borders (reference_number) WHERE deleted_at IS NULL AND reference_number IS NOT NULL`,
 	}
 	for _, stmt := range statements {
 		if err := db.Exec(stmt).Error; err != nil {

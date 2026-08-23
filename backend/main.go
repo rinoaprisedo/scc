@@ -26,11 +26,13 @@ import (
 	"baseadmin/backend/modules/activity_logs"
 	"baseadmin/backend/modules/auth"
 	"baseadmin/backend/modules/bandara"
+	"baseadmin/backend/modules/dashboard"
 	"baseadmin/backend/modules/kota_asal"
 	"baseadmin/backend/modules/menu_sections"
 	"baseadmin/backend/modules/menus"
 	"baseadmin/backend/modules/peserta"
 	"baseadmin/backend/modules/qr_gate"
+	"baseadmin/backend/modules/qris_cross_border"
 	"baseadmin/backend/modules/roles"
 	"baseadmin/backend/modules/settings"
 	"baseadmin/backend/modules/users"
@@ -62,7 +64,7 @@ func main() {
 	rdb := config.ConnectRedis(cfg)
 	activity_logs.StartWorker(db)
 
-	localStorage := storage.NewLocalStorage(cfg.StoragePath, "/uploads", cfg.StorageMaxSize)
+	fileStorage := storage.NewS3Storage(cfg.S3Endpoint, cfg.S3Region, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Bucket, cfg.StorageMaxSize)
 
 	if cfg.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -76,8 +78,6 @@ func main() {
 	router.Use(middleware.XSSSanitizer())
 	router.Use(middleware.MaintenanceMode(rdb, db))
 	router.Use(middleware.RateLimit(rdb, "api", cfg.RateLimitAPI, time.Minute, func(c *gin.Context) string { return c.ClientIP() }))
-
-	router.Static("/uploads", cfg.StoragePath)
 
 	sessionAuth := middleware.SessionAuth(rdb, db)
 	guard := func(menuPath, action string) gin.HandlerFunc {
@@ -110,7 +110,7 @@ func main() {
 	authHandler := auth.NewHandler(db, rdb, cfg)
 	authHandler.RegisterRoutes(api, sessionAuth)
 
-	usersHandler := users.NewHandler(db, cfg, localStorage, rdb)
+	usersHandler := users.NewHandler(db, cfg, fileStorage, rdb)
 	usersHandler.RegisterRoutes(api, guard, uploadLimiter)
 
 	rolesHandler := roles.NewHandler(db)
@@ -128,13 +128,19 @@ func main() {
 	bandaraHandler := bandara.NewHandler(db)
 	bandaraHandler.RegisterRoutes(api, sessionAuth, guard)
 
-	pesertaHandler := peserta.NewHandler(db, localStorage, rdb)
+	pesertaHandler := peserta.NewHandler(db, fileStorage, rdb)
 	pesertaHandler.RegisterRoutes(api, sessionAuth, guard, uploadLimiter)
 
 	qrGateHandler := qr_gate.NewHandler(db)
 	qrGateHandler.RegisterRoutes(api, sessionAuth, guard)
 
-	settingsHandler := settings.NewHandler(db, rdb, localStorage)
+	dashboardHandler := dashboard.NewHandler(db)
+	dashboardHandler.RegisterRoutes(api, sessionAuth)
+
+	qrisCrossBorderHandler := qris_cross_border.NewHandler(db, fileStorage, cfg.AnthropicAPIKey, cfg.AnthropicModel)
+	qrisCrossBorderHandler.RegisterRoutes(api, sessionAuth, guard, uploadLimiter)
+
+	settingsHandler := settings.NewHandler(db, rdb, fileStorage)
 	settingsHandler.RegisterRoutes(api, guard, uploadLimiter)
 
 	activityLogsHandler := activity_logs.NewHandler(db, cfg)

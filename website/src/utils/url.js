@@ -1,10 +1,10 @@
-const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8880/api/v1'
-export const apiOrigin = apiBase.replace(/\/api\/v1\/?$/, '')
+const s3BaseURL = (import.meta.env.VITE_S3_BASE_URL || '').replace(/\/+$/, '')
 
-// The backend stores relative storage paths (e.g. "ktp/abc123.png"); files
-// are served by the backend at /uploads/<path>, not the website's own origin.
+// The backend stores each upload's relative object key (e.g.
+// "qris_cross_border/abc123.png") — files are served directly from
+// S3-compatible object storage, not a backend-hosted /uploads route.
 export function fileURL(path) {
   if (!path) return null
   if (/^https?:\/\//.test(path)) return path
-  return `${apiOrigin}/uploads/${path.replace(/^\/+/, '')}`
+  return `${s3BaseURL}/${path.replace(/^\/+/, '')}`
 }

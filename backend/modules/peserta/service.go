@@ -3,6 +3,7 @@ package peserta
 import (
 	"context"
 	"errors"
+	"io"
 	"mime/multipart"
 	"time"
 
@@ -121,6 +122,12 @@ func (s *Service) List(p utils.Pagination) ([]UserWithPoints, int64, error) {
 // ListAll backs CSV/Excel export — every matching row, not one page.
 func (s *Service) ListAll(search string) ([]users.User, error) {
 	return s.repo.ListAll(search)
+}
+
+// OpenKtpFile backs the KTP ZIP export — reads a single uploaded KTP file's
+// contents by its stored relative path (users.User.KtpFile).
+func (s *Service) OpenKtpFile(path string) (io.ReadCloser, error) {
+	return s.storage.Open(path)
 }
 
 func (s *Service) Get(uuidStr string) (*users.User, error) {

@@ -1,9 +1,13 @@
 package peserta
 
 import (
+	"archive/zip"
 	"encoding/csv"
 	"fmt"
+	"io"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"baseadmin/backend/modules/users"
@@ -154,5 +158,83 @@ func (h *Handler) ExportExcel(c *gin.Context) {
 	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	if err := f.Write(c.Writer); err != nil {
 		c.Status(http.StatusInternalServerError)
+	}
+}
+
+// ktpZipInvalidChars covers characters most filesystems (notably Windows,
+// which many admins extracting this ZIP will be on) reject in a filename.
+var ktpZipInvalidChars = strings.NewReplacer("/", "-", "\\", "-", ":", "-", "*", "-", "?", "-", "\"", "'", "<", "-", ">", "-", "|", "-")
+
+// ktpZipEntryName builds "[Nama Depan] [Nama Tengah] [Nama Belakang] - [NIK]"
+// (the passport-style name fields, not the account's Name, which can differ
+// and isn't what an admin cross-referencing physical KTP scans wants) with
+// the original upload's extension. Falls back to the account Name when none
+// of the three passport name fields are filled in.
+func ktpZipEntryName(u users.User) string {
+	parts := make([]string, 0, 3)
+	for _, p := range []*string{u.FirstName, u.MiddleName, u.LastName} {
+		if p != nil && strings.TrimSpace(*p) != "" {
+			parts = append(parts, strings.TrimSpace(*p))
+		}
+	}
+	name := strings.Join(parts, " ")
+	if name == "" {
+		name = u.Name
+	}
+	nik := strVal(u.KtpNumber)
+	ext := filepath.Ext(*u.KtpFile)
+	return ktpZipInvalidChars.Replace(fmt.Sprintf("%s - %s%s", name, nik, ext))
+}
+
+// ExportKtpZip godoc
+// @Summary		Export every peserta's uploaded KTP file as one ZIP
+// @Tags			peserta
+// @Security		SessionCookie
+// @Param			search	query	string	false	"Search by name/email/phone/KTP/passport"
+// @Produce		application/zip
+// @Success		200
+// @Router			/peserta/export/ktp-zip [get]
+func (h *Handler) ExportKtpZip(c *gin.Context) {
+	list, err := h.Service.ListAll(c.Query("search"))
+	if err != nil {
+		utils.Error(c, 500, "failed to export peserta")
+		return
+	}
+
+	filename := fmt.Sprintf("peserta_ktp_%s.zip", time.Now().Format("20060102_150405"))
+	c.Header("Content-Disposition", "attachment; filename="+filename)
+	c.Header("Content-Type", "application/zip")
+
+	zw := zip.NewWriter(c.Writer)
+	defer zw.Close()
+
+	// NIK is unique per active peserta (idx_users_ktp_number_active), so the
+	// generated entry name is unique too — dedupe anyway so a data hiccup
+	// (a missing NIK on two rows, both falling back to "") produces distinct
+	// files inside the archive instead of one silently overwriting another.
+	usedNames := map[string]int{}
+	for _, u := range list {
+		if u.KtpFile == nil || *u.KtpFile == "" {
+			continue
+		}
+		rc, err := h.Service.OpenKtpFile(*u.KtpFile)
+		if err != nil {
+			continue // file missing on disk — skip rather than fail the whole export
+		}
+
+		baseName := ktpZipEntryName(u)
+		entryName := baseName
+		if n := usedNames[baseName]; n > 0 {
+			ext := filepath.Ext(baseName)
+			base := strings.TrimSuffix(baseName, ext)
+			entryName = fmt.Sprintf("%s (%d)%s", base, n, ext)
+		}
+		usedNames[baseName]++
+
+		w, err := zw.Create(entryName)
+		if err == nil {
+			_, _ = io.Copy(w, rc)
+		}
+		rc.Close()
 	}
 }

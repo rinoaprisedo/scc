@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import LoginModal from '../components/LoginModal.jsx'
-import bgMobile from '../assets/Microsite-04 (1).jpg'
+import bgMobile from '../assets/Microsite-04 (1).webp'
 import bgDesktop from '../assets/Microsite-03.jpg'
-import badge from '../assets/Microsite-08.png'
-import title from '../assets/Microsite-10.png'
+import badge from '../assets/Microsite-08.webp'
+import title from '../assets/Microsite-10.webp'
 import divider from '../assets/Microsite-03.png'
 import danamonLogo from '../assets/logo-danamon.webp'
 import lpsLogo from '../assets/logo-lps.avif'
+import bottomStrip from '../assets/Danamon List-05.jpg'
 
 function Landing() {
   const [showLogin, setShowLogin] = useState(false)
@@ -60,9 +61,10 @@ function Landing() {
             <img src={lpsLogo} alt="LPS" className="h-5 w-auto" />
           </p>
         </div>
+        <img src={bottomStrip} alt="" className="mt-0.5 h-3 w-full object-cover sm:hidden" />
         {/* flat 3-band strip — CSS gradient instead of a raster image so it never shows browser downscale artifacts at this height */}
         <div
-          className="mt-0.5 h-3 w-full sm:h-4"
+          className="mt-0.5 hidden h-4 w-full sm:block"
           style={{
             background:
               'linear-gradient(to right, #FCBF28 0%, #FCBF28 21.7%, #F05A27 21.7%, #F05A27 70.7%, #F89422 70.7%, #F89422 100%)',

@@ -133,6 +133,7 @@ func seedMenus(db *gorm.DB) []uint64 {
 				{Name: "Kota Asal", Icon: "MapPin", Path: "kota-asal"},
 				{Name: "Bandara", Icon: "Plane", Path: "bandara"},
 				{Name: "QR Gate", Icon: "QrCode", Path: "qr-gate"},
+				{Name: "Qris Cross Border", Icon: "Landmark", Path: "qris-cross-border"},
 			},
 		},
 		{

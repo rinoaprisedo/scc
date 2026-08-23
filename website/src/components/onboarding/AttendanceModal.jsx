@@ -16,7 +16,7 @@ function OptionButton({ selected, onClick, children }) {
   )
 }
 
-function AttendanceModal({ userName, onUpdated }) {
+function AttendanceModal({ userName, onUpdated, onLogout }) {
   const [choice, setChoice] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -52,9 +52,14 @@ function AttendanceModal({ userName, onUpdated }) {
 
         {error && <p className="mt-4 text-sm font-medium text-red-600">{error}</p>}
 
-        <Button className="mt-7 w-full" disabled={choice === null || loading} onClick={handleSubmit}>
-          {loading ? 'Menyimpan...' : 'Lanjutkan'}
-        </Button>
+        <div className="mt-7 flex gap-3">
+          <Button type="button" variant="secondary" className="flex-1" onClick={onLogout}>
+            Logout
+          </Button>
+          <Button className="flex-1" disabled={choice === null || loading} onClick={handleSubmit}>
+            {loading ? 'Menyimpan...' : 'Lanjutkan'}
+          </Button>
+        </div>
       </div>
     </div>
   )

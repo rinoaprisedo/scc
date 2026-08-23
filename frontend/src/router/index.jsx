@@ -10,6 +10,7 @@ import Peserta from '../pages/peserta/Peserta'
 import KotaAsal from '../pages/kota_asal/KotaAsal'
 import Bandara from '../pages/bandara/Bandara'
 import QrGate from '../pages/qr_gate/QrGate'
+import QrisCrossBorder from '../pages/qris_cross_border/QrisCrossBorder'
 import Menus from '../pages/menus/Menus'
 import MenuSections from '../pages/menu_sections/MenuSections'
 import Roles from '../pages/roles/Roles'
@@ -76,6 +77,14 @@ function AppRouter() {
           element={
             <ProtectedRoute menuKey="qr-gate">
               <QrGate />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/qris-cross-border"
+          element={
+            <ProtectedRoute menuKey="qris-cross-border">
+              <QrisCrossBorder />
             </ProtectedRoute>
           }
         />

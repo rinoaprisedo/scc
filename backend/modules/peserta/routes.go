@@ -14,6 +14,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, sessionAuth gin.HandlerFun
 	g.GET("", guard("peserta", "view"), h.List)
 	g.GET("/export/csv", guard("peserta", "view"), h.ExportCSV)
 	g.GET("/export/excel", guard("peserta", "view"), h.ExportExcel)
+	g.GET("/export/ktp-zip", guard("peserta", "view"), h.ExportKtpZip)
 	g.GET("/import/template", guard("peserta", "create"), h.ImportTemplate)
 	g.POST("/import/validate", guard("peserta", "create"), uploadLimiter, h.ValidateImport)
 	g.POST("/import", guard("peserta", "create"), uploadLimiter, h.ImportExcel)
