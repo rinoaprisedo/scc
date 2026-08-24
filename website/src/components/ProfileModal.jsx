@@ -30,7 +30,6 @@ function ProfileModal({ user, onClose, onEdit }) {
     ? `${user.origin_city.name}${user.origin_city.province ? `, ${user.origin_city.province}` : ''}`
     : user.origin_city_other
   const dietary = user.dietary_restriction
-  const blazerSize = user.blazer_size ? `Blazer ${user.blazer_size}` : null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-dark/70 px-4 py-8 backdrop-blur-sm">
@@ -61,7 +60,7 @@ function ProfileModal({ user, onClose, onEdit }) {
             <Field icon={MapPin} label="Kota Asal" value={originCity} />
             <Field icon={Plane} label="Bandara Terdekat" value={user.nearest_airport?.name} />
             <Field icon={Utensils} label="Pantangan Makanan" value={dietary} />
-            <Field icon={Shirt} label="Ukuran Baju" value={blazerSize} />
+            <Field icon={Shirt} label="Ukuran Blazer" value={user.blazer_size} />
             <Field icon={Armchair} label="Nomor Meja" value={user.nomor_meja} />
           </div>
 

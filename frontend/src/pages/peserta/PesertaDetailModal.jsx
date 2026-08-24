@@ -70,7 +70,7 @@ function PesertaDetailModal({ open, onClose, peserta }) {
         </div>
 
         <div>
-          <p className="mb-3 text-sm font-semibold text-text-primary">Passport & Ukuran Baju</p>
+          <p className="mb-3 text-sm font-semibold text-text-primary">Passport & Ukuran Blazer</p>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <Field label="Nomor Passport" value={peserta.passport_number} />
             <Field label="Masa Berlaku Passport" value={formatDate(peserta.passport_expiry)} />
