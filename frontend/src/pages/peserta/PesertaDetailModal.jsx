@@ -33,8 +33,7 @@ function PesertaDetailModal({ open, onClose, peserta }) {
   const originCity = peserta.origin_city
     ? `${peserta.origin_city.name}${peserta.origin_city.province ? `, ${peserta.origin_city.province}` : ''}`
     : peserta.origin_city_other
-  const dietary =
-    peserta.dietary_restriction === 'Other' ? peserta.dietary_restriction_other : peserta.dietary_restriction
+  const dietary = peserta.dietary_restriction
   const ktpUrl = peserta.ktp_file ? fileURL(peserta.ktp_file) : null
 
   return (
@@ -75,8 +74,7 @@ function PesertaDetailModal({ open, onClose, peserta }) {
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <Field label="Nomor Passport" value={peserta.passport_number} />
             <Field label="Masa Berlaku Passport" value={formatDate(peserta.passport_expiry)} />
-            <Field label="Jacket Size" value={peserta.jacket_size} />
-            <Field label="Polo Size" value={peserta.polo_size} />
+            <Field label="Blazer Size" value={peserta.blazer_size} />
             <Field label="Nomor Meja" value={peserta.nomor_meja} />
           </div>
         </div>

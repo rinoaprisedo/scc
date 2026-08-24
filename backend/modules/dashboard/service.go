@@ -23,19 +23,9 @@ var attendanceOrder = []string{
 
 // dietaryOrder mirrors peserta/import.go's importDietaryOptions list — the
 // fixed set of options the peserta form/importer offer, plus "Belum Diisi"
-// for peserta who haven't set one yet. "Other" keeps its own bucket (custom
-// text lives in DietaryRestrictionOther) so every peserta is still counted
-// exactly once across the chart.
-var dietaryOrder = []string{"Tidak Ada", "Vegetarian", "Vegan", "Alergi Seafood", "Other", "Belum Diisi"}
-
-var dietaryLabels = map[string]string{"Other": "Lainnya"}
-
-func dietaryLabel(key string) string {
-	if label, ok := dietaryLabels[key]; ok {
-		return label
-	}
-	return key
-}
+// for peserta who haven't set one yet. Each option string doubles as its own
+// display label, so no separate label map is needed.
+var dietaryOrder = []string{"tidak ada pantangan", "tidak makan daging", "tidak makan ayam", "tidak makan seafood", "vegetarian", "Belum Diisi"}
 
 // Service holds business rules for the dashboard module.
 type Service struct {
@@ -102,7 +92,7 @@ func (s *Service) Summary() (*Summary, error) {
 	}
 	dietary := make([]NamedCount, 0, len(dietaryOrder))
 	for _, key := range dietaryOrder {
-		dietary = append(dietary, NamedCount{Key: key, Label: dietaryLabel(key), Count: dietaryByKey[key]})
+		dietary = append(dietary, NamedCount{Key: key, Label: key, Count: dietaryByKey[key]})
 	}
 
 	gateRows, err := s.repo.GateScanCounts()

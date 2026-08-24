@@ -8,10 +8,17 @@ import Button from '../../components/ui/Button'
 import FileUpload from '../../components/ui/FileUpload'
 import { pesertaSchema } from '../../utils/validation'
 
-const DIETARY_OPTIONS = ['Tidak Ada', 'Vegetarian', 'Vegan', 'Alergi Seafood', 'Other']
+const DIETARY_OPTIONS = [
+  'tidak ada pantangan',
+  'tidak makan daging',
+  'tidak makan ayam',
+  'tidak makan seafood',
+  'vegetarian',
+]
 const SIZE_OPTIONS = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL']
 const OTHER_CITY_VALUE = 'other'
 const DEFAULT_PASSWORD = 'scc2026'
+const MAX_KTP_FILE_SIZE = 3 * 1024 * 1024
 
 function Req({ children }) {
   return (
@@ -38,12 +45,10 @@ function emptyValues() {
     origin_city_other: '',
     nearest_airport_uuid: '',
     dietary_restriction: '',
-    dietary_restriction_other: '',
     phone_number: '',
     passport_number: '',
     passport_expiry: '',
-    jacket_size: '',
-    polo_size: '',
+    blazer_size: '',
     nomor_meja: '',
   }
 }
@@ -59,6 +64,7 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
 
   const [ktpFile, setKtpFile] = useState(null)
   const [ktpPreview, setKtpPreview] = useState(null)
+  const [ktpError, setKtpError] = useState('')
 
   useEffect(() => {
     if (open) {
@@ -80,23 +86,21 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
               origin_city_other: initialData.origin_city_other || '',
               nearest_airport_uuid: initialData.nearest_airport?.uuid || '',
               dietary_restriction: initialData.dietary_restriction || '',
-              dietary_restriction_other: initialData.dietary_restriction_other || '',
               phone_number: initialData.phone_number || '',
               passport_number: initialData.passport_number || '',
               passport_expiry: initialData.passport_expiry ? initialData.passport_expiry.slice(0, 10) : '',
-              jacket_size: initialData.jacket_size || '',
-              polo_size: initialData.polo_size || '',
+              blazer_size: initialData.blazer_size || '',
               nomor_meja: initialData.nomor_meja || '',
             }
           : emptyValues(),
       )
       setKtpFile(null)
       setKtpPreview(initialData?.ktp_file || null)
+      setKtpError('')
     }
   }, [open, initialData, reset])
 
   const originCityUuid = watch('origin_city_uuid')
-  const dietaryRestriction = watch('dietary_restriction')
 
   const submit = (values) => {
     const payload = { ...values }
@@ -107,9 +111,6 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
       payload.origin_city_uuid = ''
     } else {
       payload.origin_city_other = ''
-    }
-    if (payload.dietary_restriction !== 'Other') {
-      payload.dietary_restriction_other = ''
     }
     onSubmit(payload, ktpFile)
   }
@@ -207,15 +208,6 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
             {...register('phone_number')}
           />
 
-          {dietaryRestriction === 'Other' && (
-            <Input
-              className="sm:col-span-2"
-              label="Masukan pantangan makanan Anda"
-              error={errors.dietary_restriction_other?.message}
-              {...register('dietary_restriction_other')}
-            />
-          )}
-
           <Input label="Nomor Passport" error={errors.passport_number?.message} {...register('passport_number')} />
           <Input
             label="Masa Berlaku Passport"
@@ -224,15 +216,7 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
             {...register('passport_expiry')}
           />
 
-          <Select label="Select Jacket Size" error={errors.jacket_size?.message} {...register('jacket_size')}>
-            <option value="">Select</option>
-            {SIZE_OPTIONS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </Select>
-          <Select label="Select Polo Size" error={errors.polo_size?.message} {...register('polo_size')}>
+          <Select label="Select Blazer Size" error={errors.blazer_size?.message} {...register('blazer_size')}>
             <option value="">Select</option>
             {SIZE_OPTIONS.map((s) => (
               <option key={s} value={s}>
@@ -242,20 +226,28 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
           </Select>
           <Input label="Nomor Meja" error={errors.nomor_meja?.message} {...register('nomor_meja')} />
 
-          <FileUpload
-            className="sm:col-span-2"
-            label="Mohon upload copy KTP Anda"
-            hint="JPEG, PNG, or WebP"
-            preview={ktpPreview}
-            onFileSelect={(file) => {
-              setKtpFile(file)
-              setKtpPreview(URL.createObjectURL(file))
-            }}
-            onClear={() => {
-              setKtpFile(null)
-              setKtpPreview(null)
-            }}
-          />
+          <div className="sm:col-span-2">
+            <FileUpload
+              label="Mohon upload copy KTP Anda"
+              hint="JPEG, PNG, or WebP"
+              error={ktpError}
+              preview={ktpPreview}
+              onFileSelect={(file) => {
+                if (file.size > MAX_KTP_FILE_SIZE) {
+                  setKtpError('Ukuran file maksimal 3MB')
+                  return
+                }
+                setKtpFile(file)
+                setKtpPreview(URL.createObjectURL(file))
+                setKtpError('')
+              }}
+              onClear={() => {
+                setKtpFile(null)
+                setKtpPreview(null)
+              }}
+            />
+            {!ktpError && <p className="mt-1.5 text-xs font-medium text-danger">Ukuran file maksimal 3MB</p>}
+          </div>
         </div>
 
         <div className="flex justify-end gap-2 pt-2">

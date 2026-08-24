@@ -115,23 +115,21 @@ func (h *Handler) PointHistory(c *gin.Context) {
 }
 
 type profileRequest struct {
-	Title                   string `json:"title"`
-	FirstName               string `json:"first_name"`
-	MiddleName              string `json:"middle_name"`
-	LastName                string `json:"last_name"`
-	BirthDate               string `json:"birth_date"`
-	OriginCityUUID          string `json:"origin_city_uuid"`
-	OriginCityOther         string `json:"origin_city_other"`
-	NearestAirportUUID      string `json:"nearest_airport_uuid"`
-	DietaryRestriction      string `json:"dietary_restriction"`
-	DietaryRestrictionOther string `json:"dietary_restriction_other"`
-	PhoneNumber             string `json:"phone_number"`
-	KtpNumber               string `json:"ktp_number" binding:"required"`
-	NomorKtp                string `json:"nomor_ktp"`
-	PassportNumber          string `json:"passport_number"`
-	PassportExpiry          string `json:"passport_expiry"`
-	JacketSize              string `json:"jacket_size"`
-	PoloSize                string `json:"polo_size"`
+	Title              string `json:"title"`
+	FirstName          string `json:"first_name"`
+	MiddleName         string `json:"middle_name"`
+	LastName           string `json:"last_name"`
+	BirthDate          string `json:"birth_date"`
+	OriginCityUUID     string `json:"origin_city_uuid"`
+	OriginCityOther    string `json:"origin_city_other"`
+	NearestAirportUUID string `json:"nearest_airport_uuid"`
+	DietaryRestriction string `json:"dietary_restriction"`
+	PhoneNumber        string `json:"phone_number"`
+	KtpNumber          string `json:"ktp_number" binding:"required"`
+	NomorKtp           string `json:"nomor_ktp"`
+	PassportNumber     string `json:"passport_number"`
+	PassportExpiry     string `json:"passport_expiry"`
+	BlazerSize         string `json:"blazer_size"`
 	// NomorMeja is admin-only (see User.NomorMeja) — deliberately absent
 	// from selfProfileRequest below.
 	NomorMeja string `json:"nomor_meja"`
@@ -139,24 +137,22 @@ type profileRequest struct {
 
 func (r profileRequest) toInput() ProfileInput {
 	return ProfileInput{
-		Title:                   r.Title,
-		FirstName:               r.FirstName,
-		MiddleName:              r.MiddleName,
-		LastName:                r.LastName,
-		BirthDate:               r.BirthDate,
-		OriginCityUUID:          r.OriginCityUUID,
-		OriginCityOther:         r.OriginCityOther,
-		NearestAirportUUID:      r.NearestAirportUUID,
-		DietaryRestriction:      r.DietaryRestriction,
-		DietaryRestrictionOther: r.DietaryRestrictionOther,
-		PhoneNumber:             r.PhoneNumber,
-		KtpNumber:               r.KtpNumber,
-		NomorKtp:                r.NomorKtp,
-		PassportNumber:          r.PassportNumber,
-		PassportExpiry:          r.PassportExpiry,
-		JacketSize:              r.JacketSize,
-		PoloSize:                r.PoloSize,
-		NomorMeja:               r.NomorMeja,
+		Title:              r.Title,
+		FirstName:          r.FirstName,
+		MiddleName:         r.MiddleName,
+		LastName:           r.LastName,
+		BirthDate:          r.BirthDate,
+		OriginCityUUID:     r.OriginCityUUID,
+		OriginCityOther:    r.OriginCityOther,
+		NearestAirportUUID: r.NearestAirportUUID,
+		DietaryRestriction: r.DietaryRestriction,
+		PhoneNumber:        r.PhoneNumber,
+		KtpNumber:          r.KtpNumber,
+		NomorKtp:           r.NomorKtp,
+		PassportNumber:     r.PassportNumber,
+		PassportExpiry:     r.PassportExpiry,
+		BlazerSize:         r.BlazerSize,
+		NomorMeja:          r.NomorMeja,
 	}
 }
 
@@ -319,45 +315,41 @@ func (h *Handler) UpdateStatus(c *gin.Context) {
 // profileRequest's plain strings (and its binding:"required" on KtpNumber,
 // needed at admin-create time) can't express that, hence a separate type.
 type selfProfileRequest struct {
-	Title                   *string `json:"title"`
-	FirstName               *string `json:"first_name"`
-	MiddleName              *string `json:"middle_name"`
-	LastName                *string `json:"last_name"`
-	BirthDate               *string `json:"birth_date"`
-	OriginCityUUID          *string `json:"origin_city_uuid"`
-	OriginCityOther         *string `json:"origin_city_other"`
-	NearestAirportUUID      *string `json:"nearest_airport_uuid"`
-	DietaryRestriction      *string `json:"dietary_restriction"`
-	DietaryRestrictionOther *string `json:"dietary_restriction_other"`
-	PhoneNumber             *string `json:"phone_number"`
+	Title              *string `json:"title"`
+	FirstName          *string `json:"first_name"`
+	MiddleName         *string `json:"middle_name"`
+	LastName           *string `json:"last_name"`
+	BirthDate          *string `json:"birth_date"`
+	OriginCityUUID     *string `json:"origin_city_uuid"`
+	OriginCityOther    *string `json:"origin_city_other"`
+	NearestAirportUUID *string `json:"nearest_airport_uuid"`
+	DietaryRestriction *string `json:"dietary_restriction"`
+	PhoneNumber        *string `json:"phone_number"`
 	// No ktp_number here — see SelfProfileInput's comment: the login NIK
 	// isn't participant-editable. nomor_ktp is the separate field the
 	// website's "Nomor KTP" form input actually writes to.
 	NomorKtp       *string `json:"nomor_ktp"`
 	PassportNumber *string `json:"passport_number"`
 	PassportExpiry *string `json:"passport_expiry"`
-	JacketSize     *string `json:"jacket_size"`
-	PoloSize       *string `json:"polo_size"`
+	BlazerSize     *string `json:"blazer_size"`
 }
 
 func (r selfProfileRequest) toInput() SelfProfileInput {
 	return SelfProfileInput{
-		Title:                   r.Title,
-		FirstName:               r.FirstName,
-		MiddleName:              r.MiddleName,
-		LastName:                r.LastName,
-		BirthDate:               r.BirthDate,
-		OriginCityUUID:          r.OriginCityUUID,
-		OriginCityOther:         r.OriginCityOther,
-		NearestAirportUUID:      r.NearestAirportUUID,
-		DietaryRestriction:      r.DietaryRestriction,
-		DietaryRestrictionOther: r.DietaryRestrictionOther,
-		PhoneNumber:             r.PhoneNumber,
-		NomorKtp:                r.NomorKtp,
-		PassportNumber:          r.PassportNumber,
-		PassportExpiry:          r.PassportExpiry,
-		JacketSize:              r.JacketSize,
-		PoloSize:                r.PoloSize,
+		Title:              r.Title,
+		FirstName:          r.FirstName,
+		MiddleName:         r.MiddleName,
+		LastName:           r.LastName,
+		BirthDate:          r.BirthDate,
+		OriginCityUUID:     r.OriginCityUUID,
+		OriginCityOther:    r.OriginCityOther,
+		NearestAirportUUID: r.NearestAirportUUID,
+		DietaryRestriction: r.DietaryRestriction,
+		PhoneNumber:        r.PhoneNumber,
+		NomorKtp:           r.NomorKtp,
+		PassportNumber:     r.PassportNumber,
+		PassportExpiry:     r.PassportExpiry,
+		BlazerSize:         r.BlazerSize,
 	}
 }
 
@@ -383,6 +375,10 @@ func (h *Handler) UpdateMe(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			utils.Error(c, 404, "peserta not found")
+			return
+		}
+		if errors.Is(err, ErrPassportExpiryTooSoon) {
+			utils.Error(c, 400, err.Error())
 			return
 		}
 		utils.Error(c, 400, "failed to update profile")

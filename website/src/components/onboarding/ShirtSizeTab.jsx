@@ -9,24 +9,13 @@ import { updateMyProfile } from '../../api/peserta'
 // either side always matches the same size domain.
 const SIZE_OPTIONS = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL']
 
-const JACKET_GUIDE = [
+const BLAZER_GUIDE = [
   ['XS', '54.5', '64'],
   ['S', '57.5', '66'],
   ['M', '60.5', '68'],
   ['L', '63.5', '70'],
   ['XL', '67.5', '73'],
   ['XXL', '71.5', '74'],
-]
-
-const POLO_GUIDE = [
-  ['XS', '45', '63'],
-  ['S', '48', '68'],
-  ['M', '51', '71'],
-  ['L', '54', '73'],
-  ['XL', '56', '74'],
-  ['XXL', '58', '77'],
-  ['XXXL', '61', '79'],
-  ['XXXXL', '63', '81'],
 ]
 
 function SizeGuideTable({ title, rows }) {
@@ -63,7 +52,7 @@ function ShirtSizeTab({ user, formId, onSaved, onSubmittingChange }) {
     formState: { errors },
   } = useForm({
     resolver: zodResolver(shirtSchema),
-    defaultValues: { jacket_size: user.jacket_size || '', polo_size: user.polo_size || '' },
+    defaultValues: { blazer_size: user.blazer_size || '' },
   })
 
   const [error, setError] = useState('')
@@ -86,20 +75,11 @@ function ShirtSizeTab({ user, formId, onSaved, onSubmittingChange }) {
   return (
     <form id={formId} className="flex flex-col gap-5" onSubmit={handleSubmit(submit)}>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <SizeGuideTable title="JACKET — PRIA / WANITA" rows={JACKET_GUIDE} />
-        <SizeGuideTable title="POLO — PRIA / WANITA" rows={POLO_GUIDE} />
+        <SizeGuideTable title="BLAZER — PRIA / WANITA" rows={BLAZER_GUIDE} />
       </div>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-        <Select label="Select Jacket Size" required error={errors.jacket_size?.message} {...register('jacket_size')}>
-          <option value="">Select</option>
-          {SIZE_OPTIONS.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </Select>
-        <Select label="Select Polo Size" required error={errors.polo_size?.message} {...register('polo_size')}>
+        <Select label="Select Blazer Size" required error={errors.blazer_size?.message} {...register('blazer_size')}>
           <option value="">Select</option>
           {SIZE_OPTIONS.map((s) => (
             <option key={s} value={s}>

@@ -11,7 +11,6 @@ export function isFormComplete(u) {
       (u.origin_city || u.origin_city_other) &&
       u.nearest_airport &&
       u.dietary_restriction &&
-      (u.dietary_restriction !== 'Other' || u.dietary_restriction_other) &&
       u.phone_number &&
       u.ktp_number &&
       u.ktp_file &&
@@ -22,5 +21,5 @@ export function isFormComplete(u) {
 
 export function isShirtComplete(u) {
   if (!u) return false
-  return Boolean(u.jacket_size && u.polo_size)
+  return Boolean(u.blazer_size)
 }

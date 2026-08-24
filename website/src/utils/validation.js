@@ -1,5 +1,9 @@
 import { z } from 'zod'
 
+// Passport must stay valid at least 6 months past the event date
+// (2026-10-10) — standard international travel-document requirement.
+export const MIN_PASSPORT_EXPIRY = '2027-04-10'
+
 // Every Form-tab field is required except middle_name (many participants
 // don't have one) — mirrors the admin's peserta schema shape but stricter,
 // since the website enforces completion before letting a participant into
@@ -15,7 +19,6 @@ export const formSchema = z
     origin_city_other: z.string().optional().or(z.literal('')),
     nearest_airport_uuid: z.string().min(1, 'Wajib dipilih'),
     dietary_restriction: z.string().min(1, 'Wajib dipilih'),
-    dietary_restriction_other: z.string().optional().or(z.literal('')),
     phone_number: z.string().min(1, 'Wajib diisi').regex(/^\d+$/, 'Hanya angka'),
     nomor_ktp: z
       .string()
@@ -23,18 +26,20 @@ export const formSchema = z
       .optional()
       .or(z.literal('')),
     passport_number: z.string().min(1, 'Wajib diisi'),
-    passport_expiry: z.string().min(1, 'Wajib diisi'),
+    passport_expiry: z
+      .string()
+      .min(1, 'Wajib diisi')
+      .refine(
+        (val) => val >= MIN_PASSPORT_EXPIRY,
+        'Masa berlaku paspor minimal 6 bulan setelah 10 Oktober 2026 (hingga 10 April 2027)',
+      ),
   })
   .superRefine((val, ctx) => {
     if (val.origin_city_uuid === 'other' && !val.origin_city_other) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['origin_city_other'], message: 'Wajib diisi' })
     }
-    if (val.dietary_restriction === 'Other' && !val.dietary_restriction_other) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['dietary_restriction_other'], message: 'Wajib diisi' })
-    }
   })
 
 export const shirtSchema = z.object({
-  jacket_size: z.string().min(1, 'Wajib dipilih'),
-  polo_size: z.string().min(1, 'Wajib dipilih'),
+  blazer_size: z.string().min(1, 'Wajib dipilih'),
 })

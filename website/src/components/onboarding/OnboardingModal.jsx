@@ -97,7 +97,7 @@ function OnboardingModal({ user, onUpdated, onCancel, mode = 'onboarding', onClo
               onClick={() => setActiveTab('form')}
             />
             <TabHeader
-              label="Shirt Size"
+              label="Blazer Size"
               complete={isShirtComplete(user)}
               active={activeTab === 'shirt'}
               disabled={!formDone}

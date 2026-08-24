@@ -14,8 +14,15 @@ const digitsOnly = (e) => {
 }
 
 const TITLE_OPTIONS = ['Mr', 'Mrs', 'Ms']
-const DIETARY_OPTIONS = ['Tidak Ada', 'Vegetarian', 'Vegan', 'Alergi Seafood', 'Other']
+const DIETARY_OPTIONS = [
+  'tidak ada pantangan',
+  'tidak makan daging',
+  'tidak makan ayam',
+  'tidak makan seafood',
+  'vegetarian',
+]
 const OTHER_CITY_VALUE = 'other'
+const MAX_KTP_FILE_SIZE = 3 * 1024 * 1024
 
 function defaultsFrom(user) {
   return {
@@ -28,7 +35,6 @@ function defaultsFrom(user) {
     origin_city_other: user.origin_city_other || '',
     nearest_airport_uuid: user.nearest_airport?.uuid || '',
     dietary_restriction: user.dietary_restriction || '',
-    dietary_restriction_other: user.dietary_restriction_other || '',
     phone_number: user.phone_number || '',
     nomor_ktp: user.nomor_ktp || '',
     passport_number: user.passport_number || '',
@@ -57,7 +63,6 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
   const [error, setError] = useState('')
 
   const originCityUuid = watch('origin_city_uuid')
-  const dietaryRestriction = watch('dietary_restriction')
 
   useEffect(() => () => onSubmittingChange(false), [onSubmittingChange])
 
@@ -75,9 +80,6 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
         payload.origin_city_uuid = ''
       } else {
         payload.origin_city_other = ''
-      }
-      if (payload.dietary_restriction !== 'Other') {
-        payload.dietary_restriction_other = ''
       }
 
       await updateMyProfile(payload)
@@ -182,15 +184,6 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
         error={errors.phone_number?.message}
         {...register('phone_number', { onChange: digitsOnly })}
       />
-      {dietaryRestriction === 'Other' && (
-        <Input
-          label="Masukan pantangan makanan Anda"
-          required
-          className="sm:col-span-2"
-          error={errors.dietary_restriction_other?.message}
-          {...register('dietary_restriction_other')}
-        />
-      )}
 
       <Input
         label="Nomor KTP"
@@ -200,32 +193,42 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
       />
       <Input label="Nomor Passport" required error={errors.passport_number?.message} {...register('passport_number')} />
 
-      <FileUpload
-        className="sm:col-span-2"
-        label="Mohon upload copy KTP Anda"
-        required
-        hint="JPEG, PNG, or WebP"
-        error={ktpError}
-        preview={ktpPreview}
-        onFileSelect={(file) => {
-          setKtpFile(file)
-          setKtpPreview(URL.createObjectURL(file))
-          setKtpError('')
-        }}
-        onClear={() => {
-          setKtpFile(null)
-          setKtpPreview(null)
-        }}
-      />
+      <div className="sm:col-span-2">
+        <FileUpload
+          label="Mohon upload copy KTP Anda"
+          required
+          hint="JPEG, PNG, or WebP"
+          error={ktpError}
+          preview={ktpPreview}
+          onFileSelect={(file) => {
+            if (file.size > MAX_KTP_FILE_SIZE) {
+              setKtpError('Ukuran file maksimal 3MB')
+              return
+            }
+            setKtpFile(file)
+            setKtpPreview(URL.createObjectURL(file))
+            setKtpError('')
+          }}
+          onClear={() => {
+            setKtpFile(null)
+            setKtpPreview(null)
+          }}
+        />
+        {!ktpError && <p className="mt-1.5 text-xs font-medium text-red-600">Ukuran file maksimal 3MB</p>}
+      </div>
 
-      <Input
-        label="Masa Berlaku Passport"
-        required
-        className="sm:col-span-2"
-        type="date"
-        error={errors.passport_expiry?.message}
-        {...register('passport_expiry')}
-      />
+      <div className="sm:col-span-2">
+        <Input
+          label="Masa Berlaku Passport"
+          required
+          type="date"
+          error={errors.passport_expiry?.message}
+          {...register('passport_expiry')}
+        />
+        <p className="mt-1.5 text-xs text-text-secondary">
+          Paspor harus berlaku minimal 6 bulan setelah 10 Oktober 2026 (berlaku hingga minimal 10 April 2027)
+        </p>
+      </div>
 
       {error && <p className="text-sm font-medium text-red-600 sm:col-span-2">{error}</p>}
     </form>

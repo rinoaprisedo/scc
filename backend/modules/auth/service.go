@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"strings"
 	"time"
 
 	"baseadmin/backend/config"
@@ -74,7 +75,11 @@ func (s *Service) PesertaLogin(nik, password, ip, userAgent string) (*LoginResul
 	if user.Role == nil || user.Role.Name != pesertaRoleName {
 		return nil, ErrNotPeserta
 	}
-	return s.authenticate(user, password, ip, userAgent)
+	// Peserta passwords are hashed lowercase on write (see peserta.Service
+	// Create/Update) specifically so this login is case-insensitive —
+	// lowercase the attempt here to match. Admin Login above is untouched
+	// and stays case-sensitive.
+	return s.authenticate(user, strings.ToLower(password), ip, userAgent)
 }
 
 func (s *Service) authenticate(user *users.User, password, ip, userAgent string) (*LoginResult, error) {

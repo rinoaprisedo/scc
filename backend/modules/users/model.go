@@ -50,7 +50,6 @@ type User struct {
 	NearestAirportID        *uint64             `gorm:"index" json:"-"`
 	NearestAirport          *bandara.Bandara    `gorm:"foreignKey:NearestAirportID" json:"nearest_airport,omitempty"`
 	DietaryRestriction      *string             `gorm:"type:varchar(50)" json:"dietary_restriction"`
-	DietaryRestrictionOther *string             `gorm:"type:varchar(255)" json:"dietary_restriction_other"`
 	PhoneNumber             *string             `gorm:"type:varchar(20)" json:"phone_number"`
 	// KtpNumber is the login identifier ("NIK") — required, unique
 	// (idx_users_ktp_number_active), set at account creation/import and not
@@ -63,8 +62,7 @@ type User struct {
 	KtpFile        *string    `gorm:"type:varchar(255)" json:"ktp_file"`
 	PassportNumber *string    `gorm:"type:varchar(30)" json:"passport_number"`
 	PassportExpiry *time.Time `json:"passport_expiry"`
-	JacketSize     *string    `gorm:"type:varchar(10)" json:"jacket_size"`
-	PoloSize       *string    `gorm:"type:varchar(10)" json:"polo_size"`
+	BlazerSize     *string    `gorm:"type:varchar(10)" json:"blazer_size"`
 	// NomorMeja (table number) is assigned by an admin (manual entry or
 	// Excel import) for event seating — deliberately not part of
 	// SelfProfileInput/selfProfileRequest, so a participant can't set their

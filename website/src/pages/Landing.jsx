@@ -7,6 +7,7 @@ import badge from '../assets/Microsite-08.webp'
 import title from '../assets/Microsite-10.webp'
 import divider from '../assets/Microsite-03.png'
 import danamonLogo from '../assets/logo-danamon.webp'
+import danamonLogoMobile from '../assets/Single Logo_Logo White.webp'
 import lpsLogo from '../assets/logo-lps.avif'
 import bottomStrip from '../assets/Danamon List-05.jpg'
 
@@ -20,7 +21,8 @@ function Landing() {
       <img src={bgDesktop} alt="" className="absolute inset-0 hidden h-full w-full object-cover md:block" />
 
       <header className="relative px-6 py-6 sm:px-10 sm:py-8">
-        <img src={danamonLogo} alt="Danamon — A member of MUFG" className="h-[96px] sm:h-[116px]" />
+        <img src={danamonLogoMobile} alt="Danamon — A member of MUFG" className="h-[96px] sm:h-[116px] md:hidden" />
+        <img src={danamonLogo} alt="Danamon — A member of MUFG" className="hidden h-[96px] sm:h-[116px] md:block" />
       </header>
 
       <div className="relative grid flex-1 grid-cols-1 items-center gap-2 px-6 py-8 md:grid-cols-2 md:gap-8 md:px-16">

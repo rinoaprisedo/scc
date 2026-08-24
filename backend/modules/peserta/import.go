@@ -49,12 +49,10 @@ var importColumnDefs = []struct {
 	{"Kota Asal", "origin_city"},
 	{"Bandara Terdekat", "nearest_airport"},
 	{"Pantangan Makanan", "dietary_restriction"},
-	{"Pantangan Makanan Lainnya", "dietary_restriction_other"},
 	{"Nomor HP", "phone_number"},
 	{"Nomor Passport", "passport_number"},
 	{"Masa Berlaku Passport (YYYY-MM-DD)", "passport_expiry"},
-	{"Jacket Size", "jacket_size"},
-	{"Polo Size", "polo_size"},
+	{"Blazer Size", "blazer_size"},
 	{"Nomor Meja", "nomor_meja"},
 }
 
@@ -73,7 +71,7 @@ var importHeaderToField = func() map[string]string {
 // re-uploaded row whose value doesn't match any of them (e.g. pasted over
 // the dropdown, or edited outside Excel).
 var importTitleOptions = []string{"Mr", "Mrs", "Ms"}
-var importDietaryOptions = []string{"Tidak Ada", "Vegetarian", "Vegan", "Alergi Seafood", "Other"}
+var importDietaryOptions = []string{"tidak ada pantangan", "tidak makan daging", "tidak makan ayam", "tidak makan seafood", "vegetarian"}
 var importSizeOptions = []string{"S", "M", "L", "XL", "XXL", "XXXL"}
 
 var importEmailRegex = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
@@ -239,12 +237,8 @@ func (s *Service) prepareImportRows(f *excelize.File) (prepared []preparedRow, r
 			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Pantangan Makanan must be one of: " + strings.Join(importDietaryOptions, ", ")})
 			continue
 		}
-		if values["jacket_size"] != "" && !containsOptionFold(importSizeOptions, values["jacket_size"]) {
-			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Jacket Size must be one of: " + strings.Join(importSizeOptions, ", ")})
-			continue
-		}
-		if values["polo_size"] != "" && !containsOptionFold(importSizeOptions, values["polo_size"]) {
-			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Polo Size must be one of: " + strings.Join(importSizeOptions, ", ")})
+		if values["blazer_size"] != "" && !containsOptionFold(importSizeOptions, values["blazer_size"]) {
+			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Blazer Size must be one of: " + strings.Join(importSizeOptions, ", ")})
 			continue
 		}
 
@@ -322,14 +316,12 @@ func (s *Service) prepareImportRows(f *excelize.File) (prepared []preparedRow, r
 			OriginCityID:            cityID,
 			NearestAirportID:        airportID,
 			DietaryRestriction:      ptrOrNil(values["dietary_restriction"]),
-			DietaryRestrictionOther: ptrOrNil(values["dietary_restriction_other"]),
 			PhoneNumber:             ptrOrNil(values["phone_number"]),
 			KtpNumber:               ptrOrNil(nik),
 			NomorKtp:                ptrOrNil(values["nomor_ktp"]),
 			PassportNumber:          ptrOrNil(values["passport_number"]),
 			PassportExpiry:          passportExpiry,
-			JacketSize:              ptrOrNil(values["jacket_size"]),
-			PoloSize:                ptrOrNil(values["polo_size"]),
+			BlazerSize:              ptrOrNil(values["blazer_size"]),
 			NomorMeja:               ptrOrNil(values["nomor_meja"]),
 		}
 
@@ -509,8 +501,7 @@ func (h *Handler) ImportTemplate(c *gin.Context) {
 
 	addDropdown(f, sheet, colIndex["title"], importTitleOptions)
 	addDropdown(f, sheet, colIndex["dietary_restriction"], importDietaryOptions)
-	addDropdown(f, sheet, colIndex["jacket_size"], importSizeOptions)
-	addDropdown(f, sheet, colIndex["polo_size"], importSizeOptions)
+	addDropdown(f, sheet, colIndex["blazer_size"], importSizeOptions)
 	addRefDropdown(f, sheet, colIndex["origin_city"], "A", len(cityNames))
 	addRefDropdown(f, sheet, colIndex["nearest_airport"], "B", len(airportNames))
 

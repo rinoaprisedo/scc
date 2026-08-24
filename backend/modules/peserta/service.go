@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"mime/multipart"
+	"strings"
 	"time"
 
 	"baseadmin/backend/modules/users"
@@ -19,9 +20,16 @@ import (
 const dateLayout = "2006-01-02"
 
 var (
-	ErrNotFound       = errors.New("peserta not found")
-	ErrDuplicateEntry = errors.New("failed to create peserta (email or NIK may already be in use)")
+	ErrNotFound              = errors.New("peserta not found")
+	ErrDuplicateEntry        = errors.New("failed to create peserta (email or NIK may already be in use)")
+	ErrPassportExpiryTooSoon = errors.New("masa berlaku paspor minimal 6 bulan setelah 10 Oktober 2026 (hingga 10 April 2027)")
 )
+
+// minPassportExpiry is the event date (2026-10-10) plus the standard
+// 6-month passport-validity travel requirement. Only enforced on the
+// participant's own self-service save (UpdateProfile) — admin Create/Update
+// stay unrestricted since an admin may need to record/correct data as-is.
+var minPassportExpiry = time.Date(2027, 4, 10, 0, 0, 0, 0, time.UTC)
 
 // Attendance status — the single field the admin panel and website both
 // read to know where a peserta stands, replacing what used to be a
@@ -46,7 +54,6 @@ func strSet(s *string) bool {
 // struct pointer here would read as incomplete right after a save that just
 // set a real city/airport.
 func isFormComplete(u *users.User) bool {
-	dietaryOK := strSet(u.DietaryRestriction) && (*u.DietaryRestriction != "Other" || strSet(u.DietaryRestrictionOther))
 	cityOK := u.OriginCityID != nil || strSet(u.OriginCityOther)
 	return strSet(u.Title) &&
 		strSet(u.FirstName) &&
@@ -54,7 +61,7 @@ func isFormComplete(u *users.User) bool {
 		u.BirthDate != nil &&
 		cityOK &&
 		u.NearestAirportID != nil &&
-		dietaryOK &&
+		strSet(u.DietaryRestriction) &&
 		strSet(u.PhoneNumber) &&
 		strSet(u.KtpNumber) &&
 		strSet(u.KtpFile) &&
@@ -63,7 +70,7 @@ func isFormComplete(u *users.User) bool {
 }
 
 func isShirtComplete(u *users.User) bool {
-	return strSet(u.JacketSize) && strSet(u.PoloSize)
+	return strSet(u.BlazerSize)
 }
 
 // recomputeAttendanceStatus keeps AttendanceStatus in sync after any
@@ -142,24 +149,22 @@ func (s *Service) Get(uuidStr string) (*users.User, error) {
 // as "2006-01-02", UUIDs for relations — so the handler stays a thin
 // JSON-binding layer and all parsing/resolution lives here.
 type ProfileInput struct {
-	Title                   string
-	FirstName               string
-	MiddleName              string
-	LastName                string
-	BirthDate               string
-	OriginCityUUID          string
-	OriginCityOther         string
-	NearestAirportUUID      string
-	DietaryRestriction      string
-	DietaryRestrictionOther string
-	PhoneNumber             string
-	KtpNumber               string
-	NomorKtp                string
-	PassportNumber          string
-	PassportExpiry          string
-	JacketSize              string
-	PoloSize                string
-	NomorMeja               string
+	Title              string
+	FirstName          string
+	MiddleName         string
+	LastName           string
+	BirthDate          string
+	OriginCityUUID     string
+	OriginCityOther    string
+	NearestAirportUUID string
+	DietaryRestriction string
+	PhoneNumber        string
+	KtpNumber          string
+	NomorKtp           string
+	PassportNumber     string
+	PassportExpiry     string
+	BlazerSize         string
+	NomorMeja          string
 }
 
 func parseDate(s string) *time.Time {
@@ -190,7 +195,10 @@ type CreateInput struct {
 }
 
 func (s *Service) Create(in CreateInput) (*users.User, error) {
-	hashed, err := bcrypt.GenerateFromPassword([]byte(in.Password), 12)
+	// Lowercased before hashing so PesertaLogin's case-insensitive check
+	// (website login requirement — NIK/password login is not treated as
+	// case-sensitive there) has a matching hash to compare against.
+	hashed, err := bcrypt.GenerateFromPassword([]byte(strings.ToLower(in.Password)), 12)
 	if err != nil {
 		return nil, err
 	}
@@ -222,30 +230,28 @@ func (s *Service) Create(in CreateInput) (*users.User, error) {
 	attendanceStatus := StatusBelumKonfirmasi
 
 	user := users.User{
-		Name:                    in.Name,
-		Email:                   email,
-		Password:                string(hashed),
-		Status:                  status,
-		RoleID:                  &roleID,
-		AttendanceStatus:        &attendanceStatus,
-		Title:                   ptrOrNil(in.Profile.Title),
-		FirstName:               ptrOrNil(in.Profile.FirstName),
-		MiddleName:              ptrOrNil(in.Profile.MiddleName),
-		LastName:                ptrOrNil(in.Profile.LastName),
-		BirthDate:               parseDate(in.Profile.BirthDate),
-		OriginCityID:            cityID,
-		OriginCityOther:         ptrOrNil(in.Profile.OriginCityOther),
-		NearestAirportID:        airportID,
-		DietaryRestriction:      ptrOrNil(in.Profile.DietaryRestriction),
-		DietaryRestrictionOther: ptrOrNil(in.Profile.DietaryRestrictionOther),
-		PhoneNumber:             ptrOrNil(in.Profile.PhoneNumber),
-		KtpNumber:               ptrOrNil(in.Profile.KtpNumber),
-		NomorKtp:                ptrOrNil(in.Profile.NomorKtp),
-		PassportNumber:          ptrOrNil(in.Profile.PassportNumber),
-		PassportExpiry:          parseDate(in.Profile.PassportExpiry),
-		JacketSize:              ptrOrNil(in.Profile.JacketSize),
-		PoloSize:                ptrOrNil(in.Profile.PoloSize),
-		NomorMeja:               ptrOrNil(in.Profile.NomorMeja),
+		Name:               in.Name,
+		Email:              email,
+		Password:           string(hashed),
+		Status:             status,
+		RoleID:             &roleID,
+		AttendanceStatus:   &attendanceStatus,
+		Title:              ptrOrNil(in.Profile.Title),
+		FirstName:          ptrOrNil(in.Profile.FirstName),
+		MiddleName:         ptrOrNil(in.Profile.MiddleName),
+		LastName:           ptrOrNil(in.Profile.LastName),
+		BirthDate:          parseDate(in.Profile.BirthDate),
+		OriginCityID:       cityID,
+		OriginCityOther:    ptrOrNil(in.Profile.OriginCityOther),
+		NearestAirportID:   airportID,
+		DietaryRestriction: ptrOrNil(in.Profile.DietaryRestriction),
+		PhoneNumber:        ptrOrNil(in.Profile.PhoneNumber),
+		KtpNumber:          ptrOrNil(in.Profile.KtpNumber),
+		NomorKtp:           ptrOrNil(in.Profile.NomorKtp),
+		PassportNumber:     ptrOrNil(in.Profile.PassportNumber),
+		PassportExpiry:     parseDate(in.Profile.PassportExpiry),
+		BlazerSize:         ptrOrNil(in.Profile.BlazerSize),
+		NomorMeja:          ptrOrNil(in.Profile.NomorMeja),
 	}
 	user.CreatedBy = in.ActorID
 
@@ -281,7 +287,9 @@ func (s *Service) Update(uuidStr string, in UpdateInput) (before *users.User, af
 		user.Email = in.Email
 	}
 	if in.Password != "" {
-		hashed, err := bcrypt.GenerateFromPassword([]byte(in.Password), 12)
+		// See Create: lowercased before hashing to match PesertaLogin's
+		// case-insensitive comparison.
+		hashed, err := bcrypt.GenerateFromPassword([]byte(strings.ToLower(in.Password)), 12)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -317,14 +325,12 @@ func (s *Service) Update(uuidStr string, in UpdateInput) (before *users.User, af
 	user.BirthDate = parseDate(in.Profile.BirthDate)
 	user.OriginCityOther = ptrOrNil(in.Profile.OriginCityOther)
 	user.DietaryRestriction = ptrOrNil(in.Profile.DietaryRestriction)
-	user.DietaryRestrictionOther = ptrOrNil(in.Profile.DietaryRestrictionOther)
 	user.PhoneNumber = ptrOrNil(in.Profile.PhoneNumber)
 	user.KtpNumber = ptrOrNil(in.Profile.KtpNumber)
 	user.NomorKtp = ptrOrNil(in.Profile.NomorKtp)
 	user.PassportNumber = ptrOrNil(in.Profile.PassportNumber)
 	user.PassportExpiry = parseDate(in.Profile.PassportExpiry)
-	user.JacketSize = ptrOrNil(in.Profile.JacketSize)
-	user.PoloSize = ptrOrNil(in.Profile.PoloSize)
+	user.BlazerSize = ptrOrNil(in.Profile.BlazerSize)
 	user.NomorMeja = ptrOrNil(in.Profile.NomorMeja)
 	user.UpdatedBy = in.ActorID
 	recomputeAttendanceStatus(user)
@@ -353,17 +359,16 @@ func (s *Service) Update(uuidStr string, in UpdateInput) (before *users.User, af
 // Update/ProfileInput (always resent as one complete form), an unconditional
 // overwrite here would silently null out whichever tab wasn't just saved.
 type SelfProfileInput struct {
-	Title                   *string
-	FirstName               *string
-	MiddleName              *string
-	LastName                *string
-	BirthDate               *string
-	OriginCityUUID          *string
-	OriginCityOther         *string
-	NearestAirportUUID      *string
-	DietaryRestriction      *string
-	DietaryRestrictionOther *string
-	PhoneNumber             *string
+	Title              *string
+	FirstName          *string
+	MiddleName         *string
+	LastName           *string
+	BirthDate          *string
+	OriginCityUUID     *string
+	OriginCityOther    *string
+	NearestAirportUUID *string
+	DietaryRestriction *string
+	PhoneNumber        *string
 	// KtpNumber (the login NIK) is deliberately absent here — it's set at
 	// account creation/import and isn't something the participant can change
 	// via their own self-service profile form. NomorKtp is the separate,
@@ -371,8 +376,7 @@ type SelfProfileInput struct {
 	NomorKtp       *string
 	PassportNumber *string
 	PassportExpiry *string
-	JacketSize     *string
-	PoloSize       *string
+	BlazerSize     *string
 }
 
 func (s *Service) UpdateProfile(userID uint64, in SelfProfileInput) (*users.User, error) {
@@ -424,9 +428,6 @@ func (s *Service) UpdateProfile(userID uint64, in SelfProfileInput) (*users.User
 	if in.DietaryRestriction != nil {
 		user.DietaryRestriction = ptrOrNil(*in.DietaryRestriction)
 	}
-	if in.DietaryRestrictionOther != nil {
-		user.DietaryRestrictionOther = ptrOrNil(*in.DietaryRestrictionOther)
-	}
 	if in.PhoneNumber != nil {
 		user.PhoneNumber = ptrOrNil(*in.PhoneNumber)
 	}
@@ -437,13 +438,14 @@ func (s *Service) UpdateProfile(userID uint64, in SelfProfileInput) (*users.User
 		user.PassportNumber = ptrOrNil(*in.PassportNumber)
 	}
 	if in.PassportExpiry != nil {
-		user.PassportExpiry = parseDate(*in.PassportExpiry)
+		expiry := parseDate(*in.PassportExpiry)
+		if expiry != nil && expiry.Before(minPassportExpiry) {
+			return nil, ErrPassportExpiryTooSoon
+		}
+		user.PassportExpiry = expiry
 	}
-	if in.JacketSize != nil {
-		user.JacketSize = ptrOrNil(*in.JacketSize)
-	}
-	if in.PoloSize != nil {
-		user.PoloSize = ptrOrNil(*in.PoloSize)
+	if in.BlazerSize != nil {
+		user.BlazerSize = ptrOrNil(*in.BlazerSize)
 	}
 	recomputeAttendanceStatus(user)
 
