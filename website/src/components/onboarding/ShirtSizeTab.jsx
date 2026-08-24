@@ -4,46 +4,11 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import Select from '../ui/Select'
 import { shirtSchema } from '../../utils/validation'
 import { updateMyProfile } from '../../api/peserta'
+import blazerSizeGuide from '../../assets/blazer-size.webp'
 
 // Reused as-is with the admin panel's peserta form so a value entered on
 // either side always matches the same size domain.
-const SIZE_OPTIONS = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL']
-
-const BLAZER_GUIDE = [
-  ['XS', '54.5', '64'],
-  ['S', '57.5', '66'],
-  ['M', '60.5', '68'],
-  ['L', '63.5', '70'],
-  ['XL', '67.5', '73'],
-  ['XXL', '71.5', '74'],
-]
-
-function SizeGuideTable({ title, rows }) {
-  return (
-    <div className="rounded-2xl border border-surface-border bg-surface-bg p-4">
-      <p className="text-center text-sm font-bold text-navy">{title}</p>
-      <table className="mt-3 w-full text-xs text-text-primary">
-        <thead>
-          <tr className="border-b border-surface-border text-text-secondary">
-            <th className="py-1 text-left font-semibold">Size</th>
-            <th className="py-1 text-right font-semibold">Lebar</th>
-            <th className="py-1 text-right font-semibold">Panjang</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(([size, lebar, panjang]) => (
-            <tr key={size} className="border-b border-surface-border/60 last:border-0">
-              <td className="py-1">{size}</td>
-              <td className="py-1 text-right">{lebar}</td>
-              <td className="py-1 text-right">{panjang}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="mt-2 text-right text-[10px] text-text-secondary">*Satuan CM</p>
-    </div>
-  )
-}
+const SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL']
 
 function ShirtSizeTab({ user, formId, onSaved, onSubmittingChange }) {
   const {
@@ -74,8 +39,9 @@ function ShirtSizeTab({ user, formId, onSaved, onSubmittingChange }) {
 
   return (
     <form id={formId} className="flex flex-col gap-5" onSubmit={handleSubmit(submit)}>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <SizeGuideTable title="BLAZER — PRIA / WANITA" rows={BLAZER_GUIDE} />
+      <div className="rounded-2xl border border-surface-border bg-surface-bg p-4">
+        <p className="text-center text-sm font-bold text-navy">BLAZER — PRIA / WANITA</p>
+        <img src={blazerSizeGuide} alt="Panduan ukuran blazer" className="mt-3 w-full rounded-lg" />
       </div>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">

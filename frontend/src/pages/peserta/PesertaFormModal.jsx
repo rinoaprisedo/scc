@@ -15,7 +15,7 @@ const DIETARY_OPTIONS = [
   'tidak makan seafood',
   'vegetarian',
 ]
-const SIZE_OPTIONS = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL']
+const SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL']
 const OTHER_CITY_VALUE = 'other'
 const DEFAULT_PASSWORD = 'scc2026'
 const MAX_KTP_FILE_SIZE = 3 * 1024 * 1024
