@@ -4,7 +4,7 @@ import FormTab from './FormTab'
 import ShirtSizeTab from './ShirtSizeTab'
 import Button from '../ui/Button'
 import { isFormComplete, isShirtComplete } from '../../utils/onboarding'
-import { getKotaAsalOptions, getBandaraOptions } from '../../api/refData'
+import { getKotaAsalOptions, getBandaraOptions, getBlazerSizeOptions } from '../../api/refData'
 
 const FORM_ID = 'onboarding-active-form'
 
@@ -37,6 +37,7 @@ function OnboardingModal({ user, onUpdated, onCancel, mode = 'onboarding', onClo
   const [activeTab, setActiveTab] = useState(isEdit ? 'form' : formDone ? 'shirt' : 'form')
   const [kotaAsal, setKotaAsal] = useState([])
   const [bandara, setBandara] = useState([])
+  const [blazerSizes, setBlazerSizes] = useState([])
   const [submitting, setSubmitting] = useState(false)
   const [justSaved, setJustSaved] = useState(false)
   const savedTimeoutRef = useRef(null)
@@ -44,6 +45,7 @@ function OnboardingModal({ user, onUpdated, onCancel, mode = 'onboarding', onClo
   useEffect(() => {
     getKotaAsalOptions().then((res) => setKotaAsal(res.data || []))
     getBandaraOptions().then((res) => setBandara(res.data || []))
+    getBlazerSizeOptions().then((res) => setBlazerSizes(res.data || []))
     return () => clearTimeout(savedTimeoutRef.current)
   }, [])
 
@@ -123,7 +125,13 @@ function OnboardingModal({ user, onUpdated, onCancel, mode = 'onboarding', onClo
               onSubmittingChange={setSubmitting}
             />
           ) : (
-            <ShirtSizeTab user={user} formId={FORM_ID} onSaved={handleSaved} onSubmittingChange={setSubmitting} />
+            <ShirtSizeTab
+              user={user}
+              blazerSizes={blazerSizes}
+              formId={FORM_ID}
+              onSaved={handleSaved}
+              onSubmittingChange={setSubmitting}
+            />
           )}
         </div>
 

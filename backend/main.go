@@ -26,6 +26,7 @@ import (
 	"baseadmin/backend/modules/activity_logs"
 	"baseadmin/backend/modules/auth"
 	"baseadmin/backend/modules/bandara"
+	"baseadmin/backend/modules/blazer_sizes"
 	"baseadmin/backend/modules/dashboard"
 	"baseadmin/backend/modules/kota_asal"
 	"baseadmin/backend/modules/menu_sections"
@@ -127,6 +128,9 @@ func main() {
 
 	bandaraHandler := bandara.NewHandler(db)
 	bandaraHandler.RegisterRoutes(api, sessionAuth, guard)
+
+	blazerSizesHandler := blazer_sizes.NewHandler(db)
+	blazerSizesHandler.RegisterRoutes(api, sessionAuth, guard)
 
 	pesertaHandler := peserta.NewHandler(db, fileStorage, rdb)
 	pesertaHandler.RegisterRoutes(api, sessionAuth, guard, uploadLimiter)

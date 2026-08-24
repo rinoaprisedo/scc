@@ -61,6 +61,11 @@ export const bandaraSchema = z.object({
   name: z.string().min(1, 'Name is required'),
 })
 
+export const blazerSizeSchema = z.object({
+  size: z.string().min(1, 'Size is required'),
+  stock: z.coerce.number().int('Stock must be a whole number').min(0, 'Stock cannot be negative'),
+})
+
 export const qrGateSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   code: z

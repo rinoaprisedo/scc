@@ -28,6 +28,7 @@ import AlertModal from '../components/AlertModal'
 import ScannerModal from '../components/ScannerModal'
 import HistoryScannerModal from '../components/HistoryScannerModal'
 import QrisCrossBorderModal from '../components/QrisCrossBorderModal'
+import Carousel from '../components/ui/Carousel'
 import { isFormComplete } from '../utils/onboarding'
 import { isPastDeadline } from '../utils/deadline'
 import bgDesktop from '../assets/Microsite-02.webp'
@@ -36,6 +37,8 @@ import danamonLogo from '../assets/Single Logo_Logo White.webp'
 import eventBadge from '../assets/Microsite-02.png'
 import lpsLogo from '../assets/logo-lps.avif'
 import bottomStrip from '../assets/Danamon List-05.jpg'
+import profileBanner from '../assets/KV SCC 2026_Artboard 5.webp'
+import leaderboardBanner from '../assets/KV SCC 2026_Artboard 3 copy.webp'
 
 // attendance_status is the single source of truth from the backend
 // (belum_konfirmasi / hadir_belum_lengkap / tidak_hadir / hadir_lengkap) —
@@ -86,46 +89,16 @@ function isMenuEnabled(publicSettings, settingKey) {
   return publicSettings[settingKey] !== 'false'
 }
 
-const PODIUM = [
-  { place: 2, size: 'h-14 w-14', ring: 'ring-slate-300/40' },
-  { place: 1, size: 'h-16 w-16', ring: 'ring-gold/40' },
-  { place: 3, size: 'h-14 w-14', ring: 'ring-orange-300/40' },
-]
-
+// Leaderboard is still being designed — standing in with a banner carousel
+// for now (see Carousel's own comment: ready for more slides later without
+// a rewrite).
 function TopRankCard() {
   return (
-    <div className="order-last flex w-full flex-col gap-7 rounded-2xl border-2 border-gold-light/60 bg-navy p-9 shadow-lg lg:order-none lg:w-96 lg:shrink-0">
-      <div className="flex items-center gap-2">
-        <Trophy size={20} className="text-gold" />
-        <p className="text-lg font-bold text-white">Top Rank Group</p>
-      </div>
-
-      <div className="flex items-end justify-center gap-4">
-        {PODIUM.map(({ place, size, ring }) => (
-          <div key={place} className="flex flex-col items-center gap-2">
-            <div
-              className={`flex ${size} items-center justify-center rounded-full border-2 border-dashed border-gold/30 bg-navy-light text-white/40 ring-4 ${ring}`}
-            >
-              <Trophy size={place === 1 ? 26 : 20} />
-            </div>
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-navy-light text-[10px] font-bold text-white/70">
-              {place}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-col gap-2.5">
-        {[4, 5, 6].map((rank) => (
-          <div key={rank} className="flex items-center gap-3 rounded-lg bg-navy-light px-3 py-2.5">
-            <span className="text-xs font-semibold text-white/60">{rank}</span>
-            <div className="h-2.5 flex-1 rounded-full bg-white/10" />
-            <div className="h-2.5 w-10 rounded-full bg-white/10" />
-          </div>
-        ))}
-      </div>
-
-      <p className="text-center text-xs font-medium text-white/70">Rankings coming soon</p>
+    <div className="order-last hidden w-full md:block lg:order-none lg:w-[34rem] lg:shrink-0">
+      <Carousel
+        images={[{ src: leaderboardBanner, alt: 'Top Rank Group' }]}
+        className="border-2 border-gold-light/60"
+      />
     </div>
   )
 }
@@ -187,13 +160,39 @@ function Dashboard() {
       <img src={bgMobile} alt="" className="fixed inset-0 h-full w-full object-cover md:hidden" />
       <img src={bgDesktop} alt="" className="fixed inset-0 hidden h-full w-full object-cover md:block" />
 
-      <header className="relative flex flex-col items-start gap-4 px-6 py-6 sm:px-10 sm:py-8 md:flex-row md:items-start md:justify-between">
-        <img src={danamonLogo} alt="Danamon — A member of MUFG" className="h-[70px] md:h-[120px] md:translate-y-8 lg:h-[144px] lg:translate-y-10" />
+      <header className="relative flex flex-col items-start gap-4 px-6 py-6 sm:px-10 sm:py-8 md:grid md:grid-cols-3 md:items-center md:gap-4">
+        <div className="flex w-full items-start justify-between md:contents">
+          <img
+            src={danamonLogo}
+            alt="Danamon — A member of MUFG"
+            className="h-[70px] md:h-[120px] md:justify-self-start lg:h-[144px]"
+          />
+          {stage === 'done' && (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:opacity-90 md:hidden"
+            >
+              <LogOut size={14} />
+              Logout
+            </button>
+          )}
+        </div>
         <img
           src={eventBadge}
           alt="Sales Champion Conference 2026 — The Art of Leadership"
-          className="h-[220px] self-center md:h-[164px] md:self-auto lg:h-[230px]"
+          className="h-[220px] self-center md:h-[164px] md:justify-self-center lg:h-[230px]"
         />
+        {stage === 'done' && (
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="hidden items-center gap-2 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 px-5 py-2.5 text-base font-semibold text-white shadow-md transition hover:opacity-90 md:inline-flex md:justify-self-end"
+          >
+            <LogOut size={16} />
+            Logout
+          </button>
+        )}
       </header>
 
       {stage === 'done' && (
@@ -201,6 +200,11 @@ function Dashboard() {
           <TopRankCard />
 
           <div className="flex flex-1 flex-col gap-6">
+            <Carousel
+              images={[{ src: profileBanner, alt: '' }]}
+              className="border-2 border-gold-light/60 shadow-lg md:hidden"
+            />
+
             <div className="relative flex flex-col items-center gap-6 overflow-hidden rounded-2xl border-2 border-gold-light/60 bg-navy p-7 text-center shadow-lg sm:flex-row sm:items-center sm:justify-between sm:p-9 sm:text-left">
               <div className="relative flex flex-col items-center gap-3 sm:flex-row sm:items-center sm:gap-5">
                 <div className="hidden h-16 w-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gold-light via-gold to-gold-dark text-2xl font-bold text-navy-dark shadow-md ring-4 ring-gold/20 sm:flex">
@@ -233,14 +237,6 @@ function Dashboard() {
                   <FileEdit size={14} />
                   Edit Form
                 </button>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-orange-500 to-red-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:opacity-90 sm:col-span-1 sm:w-auto"
-                >
-                  <LogOut size={14} />
-                  Logout
-                </button>
               </div>
             </div>
 
@@ -269,7 +265,12 @@ function Dashboard() {
                     tabIndex={0}
                     onClick={handleActivate}
                     onKeyDown={(e) => e.key === 'Enter' && handleActivate()}
-                    className="group relative flex cursor-pointer items-center justify-between overflow-hidden rounded-2xl border-2 border-gold-light/60 bg-navy px-8 py-7 shadow-lg transition hover:border-transparent hover:bg-gradient-to-br hover:from-gold-light hover:via-gold hover:to-gold-dark"
+                    className={`group relative flex cursor-pointer items-center justify-between overflow-hidden rounded-2xl border-2 border-gold-light/60 bg-navy px-8 py-7 shadow-lg transition hover:border-transparent hover:bg-gradient-to-br hover:from-gold-light hover:via-gold hover:to-gold-dark ${
+                      // QRIS Cross Border becomes a floating "Upload QR" button on
+                      // mobile (below) instead of a grid tile — see the fixed
+                      // button after this grid.
+                      action === 'qris' ? 'hidden md:flex' : ''
+                    }`}
                   >
                     <div className="pointer-events-none absolute -bottom-10 -right-10 h-32 w-56 rotate-12 bg-gradient-to-tr from-transparent via-gold/25 to-transparent blur-2xl transition group-hover:opacity-0" />
 
@@ -283,6 +284,28 @@ function Dashboard() {
               })}
             </div>
           </div>
+        </div>
+      )}
+
+      {stage === 'done' && (
+        <div className="fixed bottom-5 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-1.5 md:hidden">
+          <button
+            type="button"
+            aria-label="Upload QR"
+            onClick={() => {
+              if (!isMenuEnabled(publicSettings, 'menu_qris_cross_border_enabled')) {
+                setAlertMessage('Maaf, Fitur ini belum tersedia')
+                return
+              }
+              setQrisOpen(true)
+            }}
+            className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-gold-light via-gold to-gold-dark text-navy-dark shadow-xl transition hover:opacity-90"
+          >
+            <QrCode size={26} />
+          </button>
+          <span className="rounded-full bg-navy-dark/80 px-2.5 py-0.5 text-[11px] font-bold text-white shadow">
+            Upload QR
+          </span>
         </div>
       )}
 

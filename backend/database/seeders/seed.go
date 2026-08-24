@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"baseadmin/backend/modules/bandara"
+	"baseadmin/backend/modules/blazer_sizes"
 	"baseadmin/backend/modules/kota_asal"
 	"baseadmin/backend/modules/menu_sections"
 	"baseadmin/backend/modules/menus"
@@ -28,6 +29,7 @@ func Run(db *gorm.DB) {
 	seedSettings(db)
 	seedKotaAsal(db)
 	seedBandara(db)
+	seedBlazerSizes(db)
 	log.Println("seed completed successfully")
 }
 
@@ -132,6 +134,7 @@ func seedMenus(db *gorm.DB) []uint64 {
 			Menus: []menuDef{
 				{Name: "Kota Asal", Icon: "MapPin", Path: "kota-asal"},
 				{Name: "Bandara", Icon: "Plane", Path: "bandara"},
+				{Name: "Blazer Size", Icon: "Shirt", Path: "blazer-sizes"},
 				{Name: "QR Gate", Icon: "QrCode", Path: "qr-gate"},
 				{Name: "Qris Cross Border", Icon: "Landmark", Path: "qris-cross-border"},
 			},
@@ -339,5 +342,19 @@ func seedBandara(db *gorm.DB) {
 	for _, name := range airports {
 		var existing bandara.Bandara
 		db.Where("name = ?", name).Attrs(bandara.Bandara{Name: name}).FirstOrCreate(&existing)
+	}
+}
+
+// seedBlazerSizes seeds the size rows the website's blazer size picker (see
+// modules/peserta and the website's ShirtSizeTab) reads stock from. Stock
+// starts at 0 for every size — real counts aren't known at seed time, and
+// seeding a made-up number would misrepresent actual inventory. An admin
+// must set real stock via the Blazer Size admin page before sizes show as
+// available.
+func seedBlazerSizes(db *gorm.DB) {
+	sizes := []string{"XS", "S", "M", "L", "XL", "XXL", "XXXL"}
+	for i, size := range sizes {
+		var existing blazer_sizes.BlazerSize
+		db.Where("size = ?", size).Attrs(blazer_sizes.BlazerSize{Size: size, Stock: 0, Order: i}).FirstOrCreate(&existing)
 	}
 }

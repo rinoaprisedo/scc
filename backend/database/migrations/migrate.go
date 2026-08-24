@@ -5,6 +5,7 @@ import (
 
 	"baseadmin/backend/modules/activity_logs"
 	"baseadmin/backend/modules/bandara"
+	"baseadmin/backend/modules/blazer_sizes"
 	"baseadmin/backend/modules/kota_asal"
 	"baseadmin/backend/modules/menu_sections"
 	"baseadmin/backend/modules/menus"
@@ -23,6 +24,7 @@ func Run(db *gorm.DB) {
 	err := db.AutoMigrate(
 		&kota_asal.KotaAsal{},
 		&bandara.Bandara{},
+		&blazer_sizes.BlazerSize{},
 		&users.User{},
 		&roles.Role{},
 		&users.Session{},
@@ -86,6 +88,9 @@ func applyPartialUniqueIndexes(db *gorm.DB) {
 		// Second line of defense against duplicate QRIS submissions, behind
 		// the application-level check in qris_cross_border's OCR job.
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_qris_cross_borders_reference_number_active ON qris_cross_borders (reference_number) WHERE deleted_at IS NULL AND reference_number IS NOT NULL`,
+		// Two rows for the same size would split its stock count across
+		// records, silently under-reporting availability.
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_blazer_sizes_size_active ON blazer_sizes (size) WHERE deleted_at IS NULL`,
 	}
 	for _, stmt := range statements {
 		if err := db.Exec(stmt).Error; err != nil {

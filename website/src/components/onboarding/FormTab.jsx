@@ -52,8 +52,8 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
   } = useForm({ resolver: zodResolver(formSchema), defaultValues: defaultsFrom(user) })
 
   const cityOptions = [
-    ...kotaAsal.map((c) => ({ value: c.uuid, label: c.name + (c.province ? `, ${c.province}` : '') })),
     { value: OTHER_CITY_VALUE, label: 'Other' },
+    ...kotaAsal.map((c) => ({ value: c.uuid, label: c.name + (c.province ? `, ${c.province}` : '') })),
   ]
   const airportOptions = bandara.map((b) => ({ value: b.uuid, label: b.name }))
 
@@ -123,21 +123,27 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
         {...register('last_name')}
       />
 
-      <Controller
-        name="origin_city_uuid"
-        control={control}
-        render={({ field }) => (
-          <Combobox
-            label="Kota Asal Keberangkatan"
-            required
-            placeholder="Ketik untuk cari kota..."
-            error={errors.origin_city_uuid?.message}
-            options={cityOptions}
-            value={field.value}
-            onChange={field.onChange}
-          />
-        )}
-      />
+      <div>
+        <Controller
+          name="origin_city_uuid"
+          control={control}
+          render={({ field }) => (
+            <Combobox
+              label="Kota Asal Keberangkatan"
+              required
+              placeholder="Ketik untuk cari kota..."
+              error={errors.origin_city_uuid?.message}
+              options={cityOptions}
+              value={field.value}
+              onChange={field.onChange}
+            />
+          )}
+        />
+        <p className="mt-1.5 text-xs text-text-secondary">
+          Isi dengan kota tempat tinggal saat ini. Jika pilihan tidak tersedia, mohon isi &apos;Others&apos; dengan
+          format (Kota, Provinsi)
+        </p>
+      </div>
       <Controller
         name="nearest_airport_uuid"
         control={control}

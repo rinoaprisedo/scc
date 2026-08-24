@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import LoginModal from '../components/LoginModal.jsx'
+import Countdown from '../components/Countdown.jsx'
 import bgMobile from '../assets/Microsite-04 (1).webp'
 import bgDesktop from '../assets/Microsite-03.jpg'
 import badge from '../assets/Microsite-08.webp'
@@ -10,6 +11,8 @@ import danamonLogo from '../assets/logo-danamon.webp'
 import danamonLogoMobile from '../assets/Single Logo_Logo White.webp'
 import lpsLogo from '../assets/logo-lps.avif'
 import bottomStrip from '../assets/Danamon List-05.jpg'
+
+const EVENT_DATE = new Date('2026-10-07T00:00:00')
 
 function Landing() {
   const [showLogin, setShowLogin] = useState(false)
@@ -41,6 +44,8 @@ function Landing() {
             className="w-full max-w-[220px] md:max-w-sm"
           />
           <img src={divider} alt="" className="w-full max-w-[200px] md:max-w-xs" />
+
+          <Countdown target={EVENT_DATE} className="mt-2 md:mt-4" />
 
           <button
             type="button"

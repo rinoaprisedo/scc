@@ -6,11 +6,7 @@ import { shirtSchema } from '../../utils/validation'
 import { updateMyProfile } from '../../api/peserta'
 import blazerSizeGuide from '../../assets/blazer-size.webp'
 
-// Reused as-is with the admin panel's peserta form so a value entered on
-// either side always matches the same size domain.
-const SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL']
-
-function ShirtSizeTab({ user, formId, onSaved, onSubmittingChange }) {
+function ShirtSizeTab({ user, blazerSizes, formId, onSaved, onSubmittingChange }) {
   const {
     register,
     handleSubmit,
@@ -47,9 +43,9 @@ function ShirtSizeTab({ user, formId, onSaved, onSubmittingChange }) {
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         <Select label="Select Blazer Size" required error={errors.blazer_size?.message} {...register('blazer_size')}>
           <option value="">Select</option>
-          {SIZE_OPTIONS.map((s) => (
-            <option key={s} value={s}>
-              {s}
+          {blazerSizes.map((b) => (
+            <option key={b.uuid} value={b.size} disabled={b.stock <= 0}>
+              {b.stock <= 0 ? `${b.size} - Stok Habis` : `${b.size} - Stock: sisa ${b.stock} pcs`}
             </option>
           ))}
         </Select>

@@ -15,12 +15,20 @@ type Repository struct {
 	DB *gorm.DB
 }
 
+// pesertaRoleName mirrors peserta.Repository's role scoping — duplicated
+// (not imported) to avoid a cross-module dependency for one string. Event
+// participants are managed exclusively through the Peserta module/menu, so
+// the admin Users list/export excludes them to avoid two menus editing the
+// same rows.
+const pesertaRoleName = "Peserta"
+
 func NewRepository(db *gorm.DB) *Repository {
 	return &Repository{DB: db}
 }
 
 func (r *Repository) List(p utils.Pagination, status, roleUUID string) ([]User, int64, error) {
-	q := r.DB.Model(&User{}).Preload("Role")
+	q := r.DB.Model(&User{}).Preload("Role").
+		Where("users.role_id IS NULL OR users.role_id NOT IN (SELECT id FROM roles WHERE name = ?)", pesertaRoleName)
 
 	if p.Search != "" {
 		like := "%" + p.Search + "%"
@@ -46,7 +54,8 @@ func (r *Repository) List(p utils.Pagination, status, roleUUID string) ([]User, 
 
 // ListAll returns every user matching the filters, unpaginated, for export.
 func (r *Repository) ListAll(search, status, roleUUID string) ([]User, error) {
-	q := r.DB.Model(&User{}).Preload("Role")
+	q := r.DB.Model(&User{}).Preload("Role").
+		Where("users.role_id IS NULL OR users.role_id NOT IN (SELECT id FROM roles WHERE name = ?)", pesertaRoleName)
 
 	if search != "" {
 		like := "%" + search + "%"

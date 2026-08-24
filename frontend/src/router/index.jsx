@@ -9,6 +9,7 @@ import Users from '../pages/users/Users'
 import Peserta from '../pages/peserta/Peserta'
 import KotaAsal from '../pages/kota_asal/KotaAsal'
 import Bandara from '../pages/bandara/Bandara'
+import BlazerSizes from '../pages/blazer_sizes/BlazerSizes'
 import QrGate from '../pages/qr_gate/QrGate'
 import QrisCrossBorder from '../pages/qris_cross_border/QrisCrossBorder'
 import Menus from '../pages/menus/Menus'
@@ -69,6 +70,14 @@ function AppRouter() {
           element={
             <ProtectedRoute menuKey="bandara">
               <Bandara />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/blazer-sizes"
+          element={
+            <ProtectedRoute menuKey="blazer-sizes">
+              <BlazerSizes />
             </ProtectedRoute>
           }
         />
