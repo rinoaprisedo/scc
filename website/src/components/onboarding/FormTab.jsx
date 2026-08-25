@@ -23,7 +23,7 @@ const DIETARY_OPTIONS = [
   'vegetarian',
 ]
 const OTHER_CITY_VALUE = 'other'
-const MAX_FILE_SIZE = 3 * 1024 * 1024
+const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 function defaultsFrom(user) {
   return {
@@ -229,7 +229,7 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
           preview={ktpPreview}
           onFileSelect={(file) => {
             if (file.size > MAX_FILE_SIZE) {
-              setKtpError('Ukuran file maksimal 3MB')
+              setKtpError('Ukuran file maksimal 10MB')
               return
             }
             setKtpFile(file)
@@ -241,7 +241,7 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
             setKtpPreview(null)
           }}
         />
-        {!ktpError && <p className="mt-1.5 text-xs font-medium text-red-600">Ukuran file maksimal 3MB</p>}
+        {!ktpError && <p className="mt-1.5 text-xs font-medium text-red-600">Ukuran file maksimal 10MB</p>}
       </div>
 
       <div className="sm:col-span-2">
@@ -254,7 +254,7 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
           alt="Paspor preview"
           onFileSelect={(file) => {
             if (file.size > MAX_FILE_SIZE) {
-              setPassportError('Ukuran file maksimal 3MB')
+              setPassportError('Ukuran file maksimal 10MB')
               return
             }
             setPassportFile(file)
@@ -266,7 +266,7 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
             setPassportPreview(null)
           }}
         />
-        {!passportError && <p className="mt-1.5 text-xs font-medium text-red-600">Ukuran file maksimal 3MB</p>}
+        {!passportError && <p className="mt-1.5 text-xs font-medium text-red-600">Ukuran file maksimal 10MB</p>}
       </div>
 
       <div className="sm:col-span-2">

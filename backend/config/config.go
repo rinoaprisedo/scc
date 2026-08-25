@@ -74,7 +74,7 @@ func Load() *Config {
 		SessionMaxAge:        getEnvInt("SESSION_MAX_AGE", 86400),
 		SessionMaxConcurrent: getEnvInt("SESSION_MAX_CONCURRENT", 3),
 
-		StorageMaxSize: int64(getEnvInt("STORAGE_MAX_SIZE", 3145728)),
+		StorageMaxSize: int64(getEnvInt("STORAGE_MAX_SIZE", 10485760)),
 
 		S3Endpoint:  getEnv("S3_ENDPOINT", ""),
 		S3Region:    getEnv("S3_REGION", ""),

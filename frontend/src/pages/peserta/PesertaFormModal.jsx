@@ -19,7 +19,7 @@ const DIETARY_OPTIONS = [
 const SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL']
 const OTHER_CITY_VALUE = 'other'
 const DEFAULT_PASSWORD = 'scc2026'
-const MAX_KTP_FILE_SIZE = 3 * 1024 * 1024
+const MAX_KTP_FILE_SIZE = 10 * 1024 * 1024
 
 function Req({ children }) {
   return (
@@ -231,7 +231,7 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
               preview={passportPreview}
               onFileSelect={(file) => {
                 if (file.size > MAX_KTP_FILE_SIZE) {
-                  setPassportError('Ukuran file maksimal 3MB')
+                  setPassportError('Ukuran file maksimal 10MB')
                   return
                 }
                 setPassportFile(file)
@@ -243,7 +243,7 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
                 setPassportPreview(null)
               }}
             />
-            {!passportError && <p className="mt-1.5 text-xs font-medium text-danger">Ukuran file maksimal 3MB</p>}
+            {!passportError && <p className="mt-1.5 text-xs font-medium text-danger">Ukuran file maksimal 10MB</p>}
           </div>
 
           <Select label="Select Blazer Size" error={errors.blazer_size?.message} {...register('blazer_size')}>
@@ -264,7 +264,7 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
               preview={ktpPreview}
               onFileSelect={(file) => {
                 if (file.size > MAX_KTP_FILE_SIZE) {
-                  setKtpError('Ukuran file maksimal 3MB')
+                  setKtpError('Ukuran file maksimal 10MB')
                   return
                 }
                 setKtpFile(file)
@@ -276,7 +276,7 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
                 setKtpPreview(null)
               }}
             />
-            {!ktpError && <p className="mt-1.5 text-xs font-medium text-danger">Ukuran file maksimal 3MB</p>}
+            {!ktpError && <p className="mt-1.5 text-xs font-medium text-danger">Ukuran file maksimal 10MB</p>}
           </div>
         </div>
 
