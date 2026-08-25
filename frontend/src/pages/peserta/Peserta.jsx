@@ -17,6 +17,7 @@ import {
   updatePeserta,
   deletePeserta,
   uploadPesertaKtp,
+  uploadPesertaPassport,
   exportPesertaCsv,
   exportPesertaExcel,
   exportPesertaKtpZip,
@@ -59,13 +60,18 @@ function Peserta() {
   const { data: bandaraData } = useQuery({ queryKey: ['bandara', 'all'], queryFn: () => getBandara({ limit: 100 }) })
 
   const saveMutation = useMutation({
-    mutationFn: async ({ payload, ktpFile }) => {
+    mutationFn: async ({ payload, ktpFile, passportFile }) => {
       const saved = editing ? await updatePeserta(editing.uuid, payload) : await createPeserta(payload)
       const uuid = editing ? editing.uuid : saved?.data?.uuid
       if (ktpFile && uuid) {
         const formData = new FormData()
         formData.append('ktp_file', ktpFile)
         await uploadPesertaKtp(uuid, formData)
+      }
+      if (passportFile && uuid) {
+        const formData = new FormData()
+        formData.append('passport_file', passportFile)
+        await uploadPesertaPassport(uuid, formData)
       }
       return saved
     },
@@ -350,7 +356,7 @@ function Peserta() {
       <PesertaFormModal
         open={formOpen}
         onClose={() => setFormOpen(false)}
-        onSubmit={(payload, ktpFile) => saveMutation.mutate({ payload, ktpFile })}
+        onSubmit={(payload, ktpFile, passportFile) => saveMutation.mutate({ payload, ktpFile, passportFile })}
         initialData={editing}
         kotaAsal={kotaAsalData?.data || []}
         bandara={bandaraData?.data || []}

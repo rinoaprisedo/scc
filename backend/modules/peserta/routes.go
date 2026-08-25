@@ -10,6 +10,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, sessionAuth gin.HandlerFun
 	g.PUT("/me", sessionAuth, h.UpdateMe)
 	g.PUT("/me/attendance", sessionAuth, h.SetMyAttendance)
 	g.POST("/me/ktp", sessionAuth, uploadLimiter, h.UploadMyKtp)
+	g.POST("/me/passport", sessionAuth, uploadLimiter, h.UploadMyPassport)
 
 	g.GET("", guard("peserta", "view"), h.List)
 	g.GET("/export/csv", guard("peserta", "view"), h.ExportCSV)
@@ -25,4 +26,5 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, sessionAuth gin.HandlerFun
 	g.DELETE("/:uuid", guard("peserta", "delete"), h.Delete)
 	g.PUT("/:uuid/status", guard("peserta", "edit"), h.UpdateStatus)
 	g.POST("/:uuid/ktp", guard("peserta", "edit"), uploadLimiter, h.UploadKtp)
+	g.POST("/:uuid/passport", guard("peserta", "edit"), uploadLimiter, h.UploadPassport)
 }

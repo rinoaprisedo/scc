@@ -6,8 +6,9 @@ import Select from '../ui/Select'
 import Combobox from '../ui/Combobox'
 import FileUpload from '../ui/FileUpload'
 import { formSchema } from '../../utils/validation'
-import { updateMyProfile, uploadMyKtp } from '../../api/peserta'
+import { updateMyProfile, uploadMyKtp, uploadMyPassport } from '../../api/peserta'
 import { fileURL } from '../../utils/url'
+import { isFormComplete } from '../../utils/onboarding'
 
 const digitsOnly = (e) => {
   e.target.value = e.target.value.replace(/\D/g, '')
@@ -22,7 +23,7 @@ const DIETARY_OPTIONS = [
   'vegetarian',
 ]
 const OTHER_CITY_VALUE = 'other'
-const MAX_KTP_FILE_SIZE = 3 * 1024 * 1024
+const MAX_FILE_SIZE = 3 * 1024 * 1024
 
 function defaultsFrom(user) {
   return {
@@ -60,7 +61,16 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
   const [ktpFile, setKtpFile] = useState(null)
   const [ktpPreview, setKtpPreview] = useState(fileURL(user.ktp_file))
   const [ktpError, setKtpError] = useState('')
+  const [passportFile, setPassportFile] = useState(null)
+  const [passportPreview, setPassportPreview] = useState(fileURL(user.passport_file))
+  const [passportError, setPassportError] = useState('')
   const [error, setError] = useState('')
+
+  // Passport scan became a required upload after some participants had
+  // already finished onboarding without it — grandfather anyone who was
+  // already complete under the old rules instead of retroactively blocking
+  // their edits on a file they were never asked for.
+  const [passportGrandfathered] = useState(() => isFormComplete(user))
 
   const originCityUuid = watch('origin_city_uuid')
 
@@ -71,7 +81,12 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
       setKtpError('Mohon upload copy KTP Anda')
       return
     }
+    if (!passportPreview && !passportGrandfathered) {
+      setPassportError('Mohon upload copy paspor Anda')
+      return
+    }
     setKtpError('')
+    setPassportError('')
     setError('')
     onSubmittingChange(true)
     try {
@@ -87,6 +102,11 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
         const formData = new FormData()
         formData.append('ktp_file', ktpFile)
         await uploadMyKtp(formData)
+      }
+      if (passportFile) {
+        const formData = new FormData()
+        formData.append('passport_file', passportFile)
+        await uploadMyPassport(formData)
       }
       await onSaved()
     } catch (err) {
@@ -109,14 +129,14 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
       <Input label="Tanggal Lahir" required type="date" error={errors.birth_date?.message} {...register('birth_date')} />
 
       <Input
-        label="Nama Depan (Sesuai Passport)"
+        label="Nama Depan (Sesuai Paspor)"
         required
         error={errors.first_name?.message}
         {...register('first_name')}
       />
-      <Input label="Nama Tengah (Sesuai Passport)" error={errors.middle_name?.message} {...register('middle_name')} />
+      <Input label="Nama Tengah (Sesuai Paspor)" error={errors.middle_name?.message} {...register('middle_name')} />
       <Input
-        label="Nama Belakang (Sesuai Passport)"
+        label="Nama Belakang (Sesuai Paspor)"
         required
         className="sm:col-span-2"
         error={errors.last_name?.message}
@@ -193,11 +213,12 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
 
       <Input
         label="Nomor KTP"
+        required
         inputMode="numeric"
         error={errors.nomor_ktp?.message}
         {...register('nomor_ktp', { onChange: digitsOnly })}
       />
-      <Input label="Nomor Passport" required error={errors.passport_number?.message} {...register('passport_number')} />
+      <Input label="Nomor Paspor" required error={errors.passport_number?.message} {...register('passport_number')} />
 
       <div className="sm:col-span-2">
         <FileUpload
@@ -207,7 +228,7 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
           error={ktpError}
           preview={ktpPreview}
           onFileSelect={(file) => {
-            if (file.size > MAX_KTP_FILE_SIZE) {
+            if (file.size > MAX_FILE_SIZE) {
               setKtpError('Ukuran file maksimal 3MB')
               return
             }
@@ -224,8 +245,33 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
       </div>
 
       <div className="sm:col-span-2">
+        <FileUpload
+          label="Mohon upload copy paspor Anda"
+          required={!passportGrandfathered}
+          hint="JPEG, PNG, or WebP"
+          error={passportError}
+          preview={passportPreview}
+          alt="Paspor preview"
+          onFileSelect={(file) => {
+            if (file.size > MAX_FILE_SIZE) {
+              setPassportError('Ukuran file maksimal 3MB')
+              return
+            }
+            setPassportFile(file)
+            setPassportPreview(URL.createObjectURL(file))
+            setPassportError('')
+          }}
+          onClear={() => {
+            setPassportFile(null)
+            setPassportPreview(null)
+          }}
+        />
+        {!passportError && <p className="mt-1.5 text-xs font-medium text-red-600">Ukuran file maksimal 3MB</p>}
+      </div>
+
+      <div className="sm:col-span-2">
         <Input
-          label="Masa Berlaku Passport"
+          label="Masa Berlaku Paspor"
           required
           type="date"
           error={errors.passport_expiry?.message}

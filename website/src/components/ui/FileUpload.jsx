@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { UploadCloud, X } from 'lucide-react'
 
-function FileUpload({ label, hint, error, required, className = '', preview, onFileSelect, onClear }) {
+function FileUpload({ label, hint, error, required, className = '', preview, alt = 'Preview', onFileSelect, onClear }) {
   const inputRef = useRef(null)
 
   const handleChange = (e) => {
@@ -24,7 +24,7 @@ function FileUpload({ label, hint, error, required, className = '', preview, onF
         }`}
       >
         {preview ? (
-          <img src={preview} alt="KTP preview" className="h-14 w-20 shrink-0 rounded-lg border border-surface-border object-cover" />
+          <img src={preview} alt={alt} className="h-14 w-20 shrink-0 rounded-lg border border-surface-border object-cover" />
         ) : (
           <div className="flex h-14 w-20 shrink-0 items-center justify-center rounded-lg bg-surface-bg text-text-secondary">
             <UploadCloud size={22} strokeWidth={1.7} />

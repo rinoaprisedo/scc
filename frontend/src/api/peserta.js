@@ -13,6 +13,8 @@ export const updatePesertaStatus = (uuid, status) => client.put(`/peserta/${uuid
 export const getPesertaPointHistory = (uuid) => client.get(`/peserta/${uuid}/points`).then((r) => r.data)
 export const uploadPesertaKtp = (uuid, formData) =>
   client.post(`/peserta/${uuid}/ktp`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data)
+export const uploadPesertaPassport = (uuid, formData) =>
+  client.post(`/peserta/${uuid}/passport`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data)
 
 function downloadFile(blob, filename) {
   const url = window.URL.createObjectURL(blob)

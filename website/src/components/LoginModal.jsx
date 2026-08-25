@@ -42,7 +42,7 @@ function LoginModal({ onClose, onLoginSuccess }) {
 
         <form onSubmit={handleSubmit} className="mt-7 flex flex-col gap-5">
           <Input
-            label="NIK"
+            label="NIP"
             required
             value={nik}
             onChange={(e) => setNik(e.target.value)}

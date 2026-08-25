@@ -22,9 +22,8 @@ export const formSchema = z
     phone_number: z.string().min(1, 'Wajib diisi').regex(/^\d+$/, 'Hanya angka'),
     nomor_ktp: z
       .string()
-      .regex(/^\d*$/, 'Hanya angka')
-      .optional()
-      .or(z.literal('')),
+      .min(1, 'Wajib diisi')
+      .regex(/^\d+$/, 'Hanya angka'),
     passport_number: z.string().min(1, 'Wajib diisi'),
     passport_expiry: z
       .string()

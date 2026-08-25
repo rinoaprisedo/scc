@@ -53,6 +53,11 @@ func strSet(s *string) bool {
 // (see the "stale preloaded association" comments below), so checking the
 // struct pointer here would read as incomplete right after a save that just
 // set a real city/airport.
+// PassportFile is deliberately not part of completeness — it was added
+// after some participants had already finished onboarding without it, and
+// requiring it here would retroactively bounce already-complete profiles
+// back into the mandatory flow. It's enforced only at the point of filling
+// the form for the first time (website's formSchema + FormTab's submit-block).
 func isFormComplete(u *users.User) bool {
 	cityOK := u.OriginCityID != nil || strSet(u.OriginCityOther)
 	return strSet(u.Title) &&
@@ -538,6 +543,46 @@ func (s *Service) UploadKtp(uuidStr string, file multipart.File, header *multipa
 	}
 
 	user.KtpFile = &path
+	recomputeAttendanceStatus(user)
+	if err := s.repo.Save(user); err != nil {
+		return "", err
+	}
+	return s.storage.GetURL(path), nil
+}
+
+// UploadPassportSelf mirrors UploadPassport but resolves the target user
+// from the session (numeric ID) rather than an admin-supplied UUID param.
+func (s *Service) UploadPassportSelf(userID uint64, file multipart.File, header *multipart.FileHeader) (string, error) {
+	user, err := s.repo.FindByUserID(userID)
+	if err != nil {
+		return "", ErrNotFound
+	}
+
+	path, err := s.storage.Upload(file, header, "passport")
+	if err != nil {
+		return "", err
+	}
+
+	user.PassportFile = &path
+	recomputeAttendanceStatus(user)
+	if err := s.repo.Save(user); err != nil {
+		return "", err
+	}
+	return s.storage.GetURL(path), nil
+}
+
+func (s *Service) UploadPassport(uuidStr string, file multipart.File, header *multipart.FileHeader) (string, error) {
+	user, err := s.repo.FindByUUID(uuidStr)
+	if err != nil {
+		return "", ErrNotFound
+	}
+
+	path, err := s.storage.Upload(file, header, "passport")
+	if err != nil {
+		return "", err
+	}
+
+	user.PassportFile = &path
 	recomputeAttendanceStatus(user)
 	if err := s.repo.Save(user); err != nil {
 		return "", err

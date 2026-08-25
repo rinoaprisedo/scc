@@ -185,6 +185,7 @@ func (h *Handler) profileResponse(u *users.User) gin.H {
 		"ktp_file":            u.KtpFile,
 		"passport_number":     u.PassportNumber,
 		"passport_expiry":     u.PassportExpiry,
+		"passport_file":       u.PassportFile,
 		"blazer_size":         u.BlazerSize,
 		"attendance_status":   u.AttendanceStatus,
 	}

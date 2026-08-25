@@ -501,3 +501,76 @@ func (h *Handler) UploadKtp(c *gin.Context) {
 	}
 	utils.Success(c, 200, "ktp uploaded", gin.H{"ktp_file": url})
 }
+
+// UploadMyPassport godoc
+// @Summary		Upload the current peserta's own passport scan
+// @Tags			peserta
+// @Security		SessionCookie
+// @Accept			multipart/form-data
+// @Param			passport_file	formData	file	true	"Passport scan image"
+// @Success		200				{object}	utils.Response
+// @Failure		401				{object}	utils.Response
+// @Router			/peserta/me/passport [post]
+func (h *Handler) UploadMyPassport(c *gin.Context) {
+	userID := utils.CurrentUserID(c)
+	if userID == nil {
+		utils.Error(c, 401, "authentication required")
+		return
+	}
+	fileHeader, err := c.FormFile("passport_file")
+	if err != nil {
+		utils.Error(c, 400, "passport file is required")
+		return
+	}
+	file, err := fileHeader.Open()
+	if err != nil {
+		utils.Error(c, 400, "failed to read uploaded file")
+		return
+	}
+	defer file.Close()
+
+	url, err := h.Service.UploadPassportSelf(*userID, file, fileHeader)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			utils.Error(c, 404, "peserta not found")
+			return
+		}
+		utils.Error(c, 400, err.Error())
+		return
+	}
+	utils.Success(c, 200, "passport uploaded", gin.H{"passport_file": url})
+}
+
+// UploadPassport godoc
+// @Summary		Upload a peserta's passport scan
+// @Tags			peserta
+// @Security		SessionCookie
+// @Param			uuid			path	string	true	"Peserta UUID"
+// @Accept			multipart/form-data
+// @Param			passport_file	formData	file	true	"Passport scan image"
+// @Success		200				{object}	utils.Response
+// @Router			/peserta/{uuid}/passport [post]
+func (h *Handler) UploadPassport(c *gin.Context) {
+	fileHeader, err := c.FormFile("passport_file")
+	if err != nil {
+		utils.Error(c, 400, "passport file is required")
+		return
+	}
+	file, err := fileHeader.Open()
+	if err != nil {
+		utils.Error(c, 400, "failed to read uploaded file")
+		return
+	}
+	defer file.Close()
+
+	url, err := h.Service.UploadPassport(c.Param("uuid"), file, fileHeader)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			utils.Error(c, 404, "peserta not found")
+			return
+		}
+		utils.Error(c, 400, err.Error())
+		return
+	}
+	utils.Success(c, 200, "passport uploaded", gin.H{"passport_file": url})
+}

@@ -7,6 +7,7 @@ import Select from '../../components/ui/Select'
 import Button from '../../components/ui/Button'
 import FileUpload from '../../components/ui/FileUpload'
 import { pesertaSchema } from '../../utils/validation'
+import { fileURL } from '../../utils/url'
 
 const DIETARY_OPTIONS = [
   'tidak ada pantangan',
@@ -65,6 +66,9 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
   const [ktpFile, setKtpFile] = useState(null)
   const [ktpPreview, setKtpPreview] = useState(null)
   const [ktpError, setKtpError] = useState('')
+  const [passportFile, setPassportFile] = useState(null)
+  const [passportPreview, setPassportPreview] = useState(null)
+  const [passportError, setPassportError] = useState('')
 
   useEffect(() => {
     if (open) {
@@ -95,8 +99,11 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
           : emptyValues(),
       )
       setKtpFile(null)
-      setKtpPreview(initialData?.ktp_file || null)
+      setKtpPreview(initialData?.ktp_file ? fileURL(initialData.ktp_file) : null)
       setKtpError('')
+      setPassportFile(null)
+      setPassportPreview(initialData?.passport_file ? fileURL(initialData.passport_file) : null)
+      setPassportError('')
     }
   }, [open, initialData, reset])
 
@@ -112,7 +119,7 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
     } else {
       payload.origin_city_other = ''
     }
-    onSubmit(payload, ktpFile)
+    onSubmit(payload, ktpFile, passportFile)
   }
 
   return (
@@ -144,18 +151,18 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
           </Select>
 
           <Input
-            label="Nama Depan (Sesuai Passport)"
+            label="Nama Depan (Sesuai Paspor)"
             error={errors.first_name?.message}
             {...register('first_name')}
           />
           <Input
-            label="Nama Tengah (Sesuai Passport)"
+            label="Nama Tengah (Sesuai Paspor)"
             error={errors.middle_name?.message}
             {...register('middle_name')}
           />
 
           <Input
-            label="Nama Belakang (Sesuai Passport)"
+            label="Nama Belakang (Sesuai Paspor)"
             error={errors.last_name?.message}
             {...register('last_name')}
           />
@@ -208,13 +215,36 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
             {...register('phone_number')}
           />
 
-          <Input label="Nomor Passport" error={errors.passport_number?.message} {...register('passport_number')} />
+          <Input label="Nomor Paspor" error={errors.passport_number?.message} {...register('passport_number')} />
           <Input
-            label="Masa Berlaku Passport"
+            label="Masa Berlaku Paspor"
             type="date"
             error={errors.passport_expiry?.message}
             {...register('passport_expiry')}
           />
+
+          <div className="sm:col-span-2">
+            <FileUpload
+              label="Mohon upload copy paspor Anda"
+              hint="JPEG, PNG, or WebP"
+              error={passportError}
+              preview={passportPreview}
+              onFileSelect={(file) => {
+                if (file.size > MAX_KTP_FILE_SIZE) {
+                  setPassportError('Ukuran file maksimal 3MB')
+                  return
+                }
+                setPassportFile(file)
+                setPassportPreview(URL.createObjectURL(file))
+                setPassportError('')
+              }}
+              onClear={() => {
+                setPassportFile(null)
+                setPassportPreview(null)
+              }}
+            />
+            {!passportError && <p className="mt-1.5 text-xs font-medium text-danger">Ukuran file maksimal 3MB</p>}
+          </div>
 
           <Select label="Select Blazer Size" error={errors.blazer_size?.message} {...register('blazer_size')}>
             <option value="">Select</option>

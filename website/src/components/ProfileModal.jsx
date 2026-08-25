@@ -1,4 +1,4 @@
-import { X, Mail, Phone, CreditCard, IdCard, MapPin, Plane, Utensils, Shirt, Cake, Armchair } from 'lucide-react'
+import { X, Phone, CreditCard, IdCard, MapPin, Plane, Utensils, Shirt, Cake, Armchair } from 'lucide-react'
 import { fileURL } from '../utils/url'
 
 function Field({ icon: Icon, label, value }) {
@@ -51,12 +51,11 @@ function ProfileModal({ user, onClose, onEdit }) {
 
         <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <Field icon={Mail} label="Email" value={user.email} />
             <Field icon={Cake} label="Tanggal Lahir" value={formatDate(user.birth_date)} />
             <Field icon={Phone} label="Nomor HP" value={user.phone_number} />
             <Field icon={CreditCard} label="Nomor KTP" value={user.nomor_ktp} />
-            <Field icon={IdCard} label="Nomor Passport" value={user.passport_number} />
-            <Field icon={IdCard} label="Masa Berlaku Passport" value={formatDate(user.passport_expiry)} />
+            <Field icon={IdCard} label="Nomor Paspor" value={user.passport_number} />
+            <Field icon={IdCard} label="Masa Berlaku Paspor" value={formatDate(user.passport_expiry)} />
             <Field icon={MapPin} label="Kota Asal" value={originCity} />
             <Field icon={Plane} label="Bandara Terdekat" value={user.nearest_airport?.name} />
             <Field icon={Utensils} label="Pantangan Makanan" value={dietary} />
@@ -64,16 +63,28 @@ function ProfileModal({ user, onClose, onEdit }) {
             <Field icon={Armchair} label="Nomor Meja" value={user.nomor_meja} />
           </div>
 
-          {user.ktp_file && (
-            <div className="mt-6">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">KTP</p>
-              <img
-                src={fileURL(user.ktp_file)}
-                alt="KTP"
-                className="h-32 w-auto rounded-lg border border-surface-border object-cover"
-              />
-            </div>
-          )}
+          <div className="mt-6 flex flex-wrap gap-6">
+            {user.ktp_file && (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">KTP</p>
+                <img
+                  src={fileURL(user.ktp_file)}
+                  alt="KTP"
+                  className="h-32 w-auto rounded-lg border border-surface-border object-cover"
+                />
+              </div>
+            )}
+            {user.passport_file && (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">Paspor</p>
+                <img
+                  src={fileURL(user.passport_file)}
+                  alt="Paspor"
+                  className="h-32 w-auto rounded-lg border border-surface-border object-cover"
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="shrink-0 border-t border-surface-border bg-white px-8 py-5">

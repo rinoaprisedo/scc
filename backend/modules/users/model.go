@@ -62,6 +62,7 @@ type User struct {
 	KtpFile        *string    `gorm:"type:varchar(255)" json:"ktp_file"`
 	PassportNumber *string    `gorm:"type:varchar(30)" json:"passport_number"`
 	PassportExpiry *time.Time `json:"passport_expiry"`
+	PassportFile   *string    `gorm:"type:varchar(255)" json:"passport_file"`
 	BlazerSize     *string    `gorm:"type:varchar(10)" json:"blazer_size"`
 	// NomorMeja (table number) is assigned by an admin (manual entry or
 	// Excel import) for event seating — deliberately not part of

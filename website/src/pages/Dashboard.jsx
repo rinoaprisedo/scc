@@ -212,7 +212,7 @@ function Dashboard() {
                 </div>
                 <div>
                   <p className="mt-1 text-2xl font-bold text-white">{user?.name || 'Participant'}</p>
-                  <p className="mt-1 text-base font-medium text-white/60">NIK {user?.ktp_number || '-'}</p>
+                  <p className="mt-1 text-base font-medium text-white/60">NIP {user?.ktp_number || '-'}</p>
                   <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-gold/10 px-3 py-1 text-sm font-bold text-gold">
                     <Trophy size={14} />
                     {totalPoints} Poin

@@ -26,7 +26,7 @@ function fullName(p) {
 }
 
 function PesertaDetailModal({ open, onClose, peserta }) {
-  const [zoomed, setZoomed] = useState(false)
+  const [zoomedUrl, setZoomedUrl] = useState(null)
 
   if (!peserta) return null
   const attendance = attendanceLabel(peserta.attendance_status)
@@ -35,6 +35,7 @@ function PesertaDetailModal({ open, onClose, peserta }) {
     : peserta.origin_city_other
   const dietary = peserta.dietary_restriction
   const ktpUrl = peserta.ktp_file ? fileURL(peserta.ktp_file) : null
+  const passportUrl = peserta.passport_file ? fileURL(peserta.passport_file) : null
 
   return (
     <Modal open={open} onClose={onClose} title="Detail Peserta" size="lg">
@@ -70,46 +71,63 @@ function PesertaDetailModal({ open, onClose, peserta }) {
         </div>
 
         <div>
-          <p className="mb-3 text-sm font-semibold text-text-primary">Passport & Ukuran Blazer</p>
+          <p className="mb-3 text-sm font-semibold text-text-primary">Paspor & Ukuran Blazer</p>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <Field label="Nomor Passport" value={peserta.passport_number} />
-            <Field label="Masa Berlaku Passport" value={formatDate(peserta.passport_expiry)} />
+            <Field label="Nomor Paspor" value={peserta.passport_number} />
+            <Field label="Masa Berlaku Paspor" value={formatDate(peserta.passport_expiry)} />
             <Field label="Blazer Size" value={peserta.blazer_size} />
             <Field label="Nomor Meja" value={peserta.nomor_meja} />
           </div>
         </div>
 
-        {ktpUrl && (
-          <div>
-            <p className="mb-2 text-sm font-semibold text-text-primary">KTP</p>
-            <button
-              type="button"
-              onClick={() => setZoomed(true)}
-              className="group relative inline-block overflow-hidden rounded-md border border-surface-border"
-            >
-              <img src={ktpUrl} alt="KTP" className="h-40 w-auto object-cover" />
-              <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/30 group-hover:opacity-100">
-                <ZoomIn size={22} />
-              </span>
-            </button>
-          </div>
-        )}
+        <div className="flex flex-wrap gap-6">
+          {ktpUrl && (
+            <div>
+              <p className="mb-2 text-sm font-semibold text-text-primary">KTP</p>
+              <button
+                type="button"
+                onClick={() => setZoomedUrl(ktpUrl)}
+                className="group relative inline-block overflow-hidden rounded-md border border-surface-border"
+              >
+                <img src={ktpUrl} alt="KTP" className="h-40 w-auto object-cover" />
+                <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/30 group-hover:opacity-100">
+                  <ZoomIn size={22} />
+                </span>
+              </button>
+            </div>
+          )}
+          {passportUrl && (
+            <div>
+              <p className="mb-2 text-sm font-semibold text-text-primary">Paspor</p>
+              <button
+                type="button"
+                onClick={() => setZoomedUrl(passportUrl)}
+                className="group relative inline-block overflow-hidden rounded-md border border-surface-border"
+              >
+                <img src={passportUrl} alt="Paspor" className="h-40 w-auto object-cover" />
+                <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/30 group-hover:opacity-100">
+                  <ZoomIn size={22} />
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
-      {zoomed && ktpUrl && (
+      {zoomedUrl && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-6"
-          onClick={() => setZoomed(false)}
+          onClick={() => setZoomedUrl(null)}
         >
           <button
             type="button"
-            onClick={() => setZoomed(false)}
+            onClick={() => setZoomedUrl(null)}
             aria-label="Close"
             className="absolute right-6 top-6 text-white/80 hover:text-white"
           >
             <X size={24} />
           </button>
-          <img src={ktpUrl} alt="KTP (zoomed)" className="max-h-full max-w-full rounded-md object-contain" />
+          <img src={zoomedUrl} alt="Zoomed" className="max-h-full max-w-full rounded-md object-contain" />
         </div>
       )}
     </Modal>
