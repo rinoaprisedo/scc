@@ -64,14 +64,15 @@ var extractQrisDataTool = anthropic.ToolUnionParam{
 	},
 }
 
-// extractQrisData sends the proof-of-payment image to Claude and returns the
+// extractQrisData sends the proof-of-payment image to the configured OCR
+// provider (Claude or DeepSeek — see Service.client) and returns the
 // structured extraction.
 func (s *Service) extractQrisData(ctx context.Context, imageBytes []byte) (*extraction, error) {
 	mediaType := http.DetectContentType(imageBytes)
 	encoded := base64.StdEncoding.EncodeToString(imageBytes)
 
-	message, err := s.anthropicClient.Messages.New(ctx, anthropic.MessageNewParams{
-		Model:      s.anthropicModel,
+	message, err := s.client.Messages.New(ctx, anthropic.MessageNewParams{
+		Model:      s.model,
 		MaxTokens:  1024,
 		Thinking:   anthropic.ThinkingConfigParamUnion{OfDisabled: &anthropic.ThinkingConfigDisabledParam{}},
 		Tools:      []anthropic.ToolUnionParam{extractQrisDataTool},

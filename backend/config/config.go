@@ -44,6 +44,15 @@ type Config struct {
 
 	AnthropicAPIKey string
 	AnthropicModel  string
+
+	// OCRProvider picks which vision API modules/qris_cross_border sends
+	// payment-proof screenshots to: "claude" (default) or "deepseek". Switching
+	// providers is just this one env var — DeepSeek's Anthropic-compatible
+	// endpoint means the same anthropic-sdk-go client works for both, see
+	// qris_cross_border.NewService.
+	OCRProvider    string
+	DeepSeekAPIKey string
+	DeepSeekModel  string
 }
 
 var Cfg *Config
@@ -89,6 +98,10 @@ func Load() *Config {
 
 		AnthropicAPIKey: getEnv("ANTHROPIC_API_KEY", ""),
 		AnthropicModel:  getEnv("ANTHROPIC_MODEL", "claude-opus-5"),
+
+		OCRProvider:    getEnv("OCR_PROVIDER", "claude"),
+		DeepSeekAPIKey: getEnv("DEEPSEEK_API_KEY", ""),
+		DeepSeekModel:  getEnv("DEEPSEEK_MODEL", "deepseek-v4-flash-vision-exp"),
 	}
 
 	return Cfg

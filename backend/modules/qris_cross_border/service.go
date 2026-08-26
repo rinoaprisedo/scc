@@ -29,21 +29,34 @@ var validStatuses = map[string]bool{
 	StatusRejected:        true,
 }
 
+// deepSeekAnthropicBaseURL is DeepSeek's Anthropic-wire-compatible endpoint —
+// same request/response shape as the Claude API (image content blocks,
+// forced tool_choice, ToolUseBlock results), so ocr.go needs no changes to
+// switch providers; only which client the SDK talks to changes.
+const deepSeekAnthropicBaseURL = "https://api.deepseek.com/anthropic"
+
 // Service holds business rules for the qris_cross_border module. Repository
 // stays a thin data-access layer, matching every other module.
 type Service struct {
-	repo            *Repository
-	storage         storage.StorageInterface
-	anthropicClient anthropic.Client
-	anthropicModel  string
+	repo    *Repository
+	storage storage.StorageInterface
+	client  anthropic.Client
+	model   string
 }
 
-func NewService(repo *Repository, s storage.StorageInterface, anthropicAPIKey, anthropicModel string) *Service {
+// NewService builds the OCR client for whichever provider is configured.
+// provider is config.OCRProvider ("claude" or "deepseek"); apiKey/model are
+// already resolved to the matching pair by the caller (see main.go).
+func NewService(repo *Repository, s storage.StorageInterface, provider, apiKey, model string) *Service {
+	opts := []option.RequestOption{option.WithAPIKey(apiKey)}
+	if provider == "deepseek" {
+		opts = append(opts, option.WithBaseURL(deepSeekAnthropicBaseURL))
+	}
 	return &Service{
-		repo:            repo,
-		storage:         s,
-		anthropicClient: anthropic.NewClient(option.WithAPIKey(anthropicAPIKey)),
-		anthropicModel:  anthropicModel,
+		repo:    repo,
+		storage: s,
+		client:  anthropic.NewClient(opts...),
+		model:   model,
 	}
 }
 

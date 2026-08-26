@@ -18,8 +18,8 @@ type Handler struct {
 	Service *Service
 }
 
-func NewHandler(db *gorm.DB, s storage.StorageInterface, anthropicAPIKey, anthropicModel string) *Handler {
-	return &Handler{Service: NewService(NewRepository(db), s, anthropicAPIKey, anthropicModel)}
+func NewHandler(db *gorm.DB, s storage.StorageInterface, ocrProvider, ocrAPIKey, ocrModel string) *Handler {
+	return &Handler{Service: NewService(NewRepository(db), s, ocrProvider, ocrAPIKey, ocrModel)}
 }
 
 func parseFloatForm(c *gin.Context, key string) float64 {

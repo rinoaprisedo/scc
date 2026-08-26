@@ -141,7 +141,11 @@ func main() {
 	dashboardHandler := dashboard.NewHandler(db)
 	dashboardHandler.RegisterRoutes(api, sessionAuth)
 
-	qrisCrossBorderHandler := qris_cross_border.NewHandler(db, fileStorage, cfg.AnthropicAPIKey, cfg.AnthropicModel)
+	ocrAPIKey, ocrModel := cfg.AnthropicAPIKey, cfg.AnthropicModel
+	if cfg.OCRProvider == "deepseek" {
+		ocrAPIKey, ocrModel = cfg.DeepSeekAPIKey, cfg.DeepSeekModel
+	}
+	qrisCrossBorderHandler := qris_cross_border.NewHandler(db, fileStorage, cfg.OCRProvider, ocrAPIKey, ocrModel)
 	qrisCrossBorderHandler.RegisterRoutes(api, sessionAuth, guard, uploadLimiter)
 
 	settingsHandler := settings.NewHandler(db, rdb, fileStorage)
