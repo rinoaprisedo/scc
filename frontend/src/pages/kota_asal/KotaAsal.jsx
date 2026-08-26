@@ -51,6 +51,7 @@ function KotaAsal() {
   const columns = [
     { key: 'name', label: 'Name', sortable: true },
     { key: 'province', label: 'Province', sortable: true },
+    { key: 'description', label: 'Description', sortable: false },
     {
       key: 'actions',
       label: '',

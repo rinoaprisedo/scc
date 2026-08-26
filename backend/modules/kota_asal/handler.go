@@ -69,8 +69,9 @@ func (h *Handler) Get(c *gin.Context) {
 }
 
 type kotaAsalRequest struct {
-	Name     string `json:"name" binding:"required"`
-	Province string `json:"province"`
+	Name        string `json:"name" binding:"required"`
+	Province    string `json:"province"`
+	Description string `json:"description"`
 }
 
 // Create godoc
@@ -87,7 +88,7 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 	actorID := utils.CurrentUserID(c)
-	kotaAsal, err := h.Service.Create(Input{Name: req.Name, Province: req.Province, ActorID: actorID})
+	kotaAsal, err := h.Service.Create(Input{Name: req.Name, Province: req.Province, Description: req.Description, ActorID: actorID})
 	if err != nil {
 		utils.Error(c, 400, "failed to create kota asal")
 		return
@@ -112,7 +113,7 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 	actorID := utils.CurrentUserID(c)
-	before, after, err := h.Service.Update(c.Param("uuid"), Input{Name: req.Name, Province: req.Province, ActorID: actorID})
+	before, after, err := h.Service.Update(c.Param("uuid"), Input{Name: req.Name, Province: req.Province, Description: req.Description, ActorID: actorID})
 	if err != nil {
 		utils.Error(c, 404, "kota asal not found")
 		return

@@ -20,7 +20,7 @@ func (r *Repository) List(p utils.Pagination) ([]KotaAsal, int64, error) {
 
 	if p.Search != "" {
 		like := "%" + p.Search + "%"
-		q = q.Where("name ILIKE ? OR province ILIKE ?", like, like)
+		q = q.Where("name ILIKE ? OR province ILIKE ? OR description ILIKE ?", like, like, like)
 	}
 
 	var total int64

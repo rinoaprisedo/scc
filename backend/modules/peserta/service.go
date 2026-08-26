@@ -170,6 +170,7 @@ type ProfileInput struct {
 	PassportExpiry     string
 	BlazerSize         string
 	NomorMeja          string
+	Description        string
 }
 
 func parseDate(s string) *time.Time {
@@ -257,6 +258,7 @@ func (s *Service) Create(in CreateInput) (*users.User, error) {
 		PassportExpiry:     parseDate(in.Profile.PassportExpiry),
 		BlazerSize:         ptrOrNil(in.Profile.BlazerSize),
 		NomorMeja:          ptrOrNil(in.Profile.NomorMeja),
+		Description:        ptrOrNil(in.Profile.Description),
 	}
 	user.CreatedBy = in.ActorID
 
@@ -337,6 +339,7 @@ func (s *Service) Update(uuidStr string, in UpdateInput) (before *users.User, af
 	user.PassportExpiry = parseDate(in.Profile.PassportExpiry)
 	user.BlazerSize = ptrOrNil(in.Profile.BlazerSize)
 	user.NomorMeja = ptrOrNil(in.Profile.NomorMeja)
+	user.Description = ptrOrNil(in.Profile.Description)
 	user.UpdatedBy = in.ActorID
 	recomputeAttendanceStatus(user)
 

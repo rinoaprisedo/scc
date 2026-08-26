@@ -23,8 +23,17 @@ export const formSchema = z
     nomor_ktp: z
       .string()
       .min(1, 'Wajib diisi')
-      .regex(/^\d+$/, 'Hanya angka'),
-    passport_number: z.string().min(1, 'Wajib diisi'),
+      .regex(/^\d{16}$/, 'Nomor KTP harus 16 digit angka'),
+    passport_number: z
+      .string()
+      .min(1, 'Wajib diisi')
+      .min(8, 'Nomor paspor minimal 8 karakter')
+      .max(9, 'Nomor paspor maksimal 9 karakter')
+      .regex(/^[A-Za-z0-9]+$/, 'Nomor paspor hanya boleh huruf dan angka')
+      .refine(
+        (val) => /[A-Za-z]/.test(val) && /\d/.test(val),
+        'Nomor paspor harus kombinasi huruf dan angka',
+      ),
     passport_expiry: z
       .string()
       .min(1, 'Wajib diisi')

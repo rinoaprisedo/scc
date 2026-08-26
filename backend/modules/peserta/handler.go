@@ -130,9 +130,10 @@ type profileRequest struct {
 	PassportNumber     string `json:"passport_number"`
 	PassportExpiry     string `json:"passport_expiry"`
 	BlazerSize         string `json:"blazer_size"`
-	// NomorMeja is admin-only (see User.NomorMeja) — deliberately absent
-	// from selfProfileRequest below.
-	NomorMeja string `json:"nomor_meja"`
+	// NomorMeja and Description are admin-only (see User.NomorMeja /
+	// User.Description) — deliberately absent from selfProfileRequest below.
+	NomorMeja   string `json:"nomor_meja"`
+	Description string `json:"description"`
 }
 
 func (r profileRequest) toInput() ProfileInput {
@@ -153,6 +154,7 @@ func (r profileRequest) toInput() ProfileInput {
 		PassportExpiry:     r.PassportExpiry,
 		BlazerSize:         r.BlazerSize,
 		NomorMeja:          r.NomorMeja,
+		Description:        r.Description,
 	}
 }
 

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import LoginModal from '../components/LoginModal.jsx'
+import AgreementModal from '../components/AgreementModal.jsx'
 import Countdown from '../components/Countdown.jsx'
 import bgMobile from '../assets/Microsite-04 (1).webp'
 import bgDesktop from '../assets/Microsite-03.jpg'
@@ -16,6 +17,7 @@ const EVENT_DATE = new Date('2026-10-07T00:00:00')
 
 function Landing() {
   const [showLogin, setShowLogin] = useState(false)
+  const [showAgreement, setShowAgreement] = useState(false)
   const navigate = useNavigate()
 
   return (
@@ -80,8 +82,16 @@ function Landing() {
       </footer>
 
       {showLogin && (
-        <LoginModal onClose={() => setShowLogin(false)} onLoginSuccess={() => navigate('/dashboard')} />
+        <LoginModal
+          onClose={() => setShowLogin(false)}
+          onLoginSuccess={() => {
+            setShowLogin(false)
+            setShowAgreement(true)
+          }}
+        />
       )}
+
+      {showAgreement && <AgreementModal onAgree={() => navigate('/dashboard')} />}
     </div>
   )
 }

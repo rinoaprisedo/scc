@@ -80,6 +80,11 @@ function PesertaDetailModal({ open, onClose, peserta }) {
           </div>
         </div>
 
+        <div>
+          <p className="mb-3 text-sm font-semibold text-text-primary">Catatan Admin</p>
+          <Field label="Deskripsi" value={peserta.description} />
+        </div>
+
         <div className="flex flex-wrap gap-6">
           {ktpUrl && (
             <div>

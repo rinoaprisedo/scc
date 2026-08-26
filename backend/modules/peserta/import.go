@@ -54,6 +54,7 @@ var importColumnDefs = []struct {
 	{"Masa Berlaku Passport (YYYY-MM-DD)", "passport_expiry"},
 	{"Blazer Size", "blazer_size"},
 	{"Nomor Meja", "nomor_meja"},
+	{"Deskripsi", "description"},
 }
 
 var importHeaderToField = func() map[string]string {
@@ -302,27 +303,28 @@ func (s *Service) prepareImportRows(f *excelize.File) (prepared []preparedRow, r
 
 		attendanceStatus := StatusBelumKonfirmasi
 		user := users.User{
-			Name:                    values["name"],
-			Email:                   email,
-			Password:                string(hashedDefault),
-			Status:                  users.StatusActive,
-			RoleID:                  &roleID,
-			AttendanceStatus:        &attendanceStatus,
-			Title:                   ptrOrNil(values["title"]),
-			FirstName:               ptrOrNil(values["first_name"]),
-			MiddleName:              ptrOrNil(values["middle_name"]),
-			LastName:                ptrOrNil(values["last_name"]),
-			BirthDate:               birthDate,
-			OriginCityID:            cityID,
-			NearestAirportID:        airportID,
-			DietaryRestriction:      ptrOrNil(values["dietary_restriction"]),
-			PhoneNumber:             ptrOrNil(values["phone_number"]),
-			KtpNumber:               ptrOrNil(nik),
-			NomorKtp:                ptrOrNil(values["nomor_ktp"]),
-			PassportNumber:          ptrOrNil(values["passport_number"]),
-			PassportExpiry:          passportExpiry,
-			BlazerSize:              ptrOrNil(values["blazer_size"]),
-			NomorMeja:               ptrOrNil(values["nomor_meja"]),
+			Name:               values["name"],
+			Email:              email,
+			Password:           string(hashedDefault),
+			Status:             users.StatusActive,
+			RoleID:             &roleID,
+			AttendanceStatus:   &attendanceStatus,
+			Title:              ptrOrNil(values["title"]),
+			FirstName:          ptrOrNil(values["first_name"]),
+			MiddleName:         ptrOrNil(values["middle_name"]),
+			LastName:           ptrOrNil(values["last_name"]),
+			BirthDate:          birthDate,
+			OriginCityID:       cityID,
+			NearestAirportID:   airportID,
+			DietaryRestriction: ptrOrNil(values["dietary_restriction"]),
+			PhoneNumber:        ptrOrNil(values["phone_number"]),
+			KtpNumber:          ptrOrNil(nik),
+			NomorKtp:           ptrOrNil(values["nomor_ktp"]),
+			PassportNumber:     ptrOrNil(values["passport_number"]),
+			PassportExpiry:     passportExpiry,
+			BlazerSize:         ptrOrNil(values["blazer_size"]),
+			NomorMeja:          ptrOrNil(values["nomor_meja"]),
+			Description:        ptrOrNil(values["description"]),
 		}
 
 		prepared = append(prepared, preparedRow{RowNum: rowNum, User: user, NewAirportName: newAirportName})

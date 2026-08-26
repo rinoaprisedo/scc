@@ -88,6 +88,7 @@ func exportRow(u users.User) []string {
 		dateVal(u.PassportExpiry),
 		strVal(u.BlazerSize),
 		strVal(u.NomorMeja),
+		strVal(u.Description),
 		attendanceStatusLabel(u.AttendanceStatus),
 	}
 }

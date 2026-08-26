@@ -4,6 +4,9 @@ import { ChevronDown, X } from 'lucide-react'
 // A searchable <select> — options are filtered as the user types, but the
 // bound value is still just the picked option's `value` (a uuid), so it
 // drops into react-hook-form via <Controller> exactly like a plain select.
+// An option can carry `keywords` (e.g. admin-defined search terms) that
+// match without being shown in the label — lets "Jabodetabek" surface when
+// searching "Jakarta" without the label itself listing every city name.
 function Combobox({ label, required, error, options, value, onChange, placeholder = 'Cari...', className = '' }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -16,7 +19,10 @@ function Combobox({ label, required, error, options, value, onChange, placeholde
   }, [selected, open])
 
   const filtered = query.trim()
-    ? options.filter((o) => o.label.toLowerCase().includes(query.trim().toLowerCase()))
+    ? options.filter((o) => {
+        const term = query.trim().toLowerCase()
+        return o.label.toLowerCase().includes(term) || o.keywords?.toLowerCase().includes(term)
+      })
     : options
 
   const handleSelect = (opt) => {

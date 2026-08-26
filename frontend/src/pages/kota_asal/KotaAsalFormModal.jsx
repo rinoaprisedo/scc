@@ -18,8 +18,12 @@ function KotaAsalFormModal({ open, onClose, onSubmit, initialData, loading }) {
     if (open) {
       reset(
         initialData
-          ? { name: initialData.name, province: initialData.province || '' }
-          : { name: '', province: '' },
+          ? {
+              name: initialData.name,
+              province: initialData.province || '',
+              description: initialData.description || '',
+            }
+          : { name: '', province: '', description: '' },
       )
     }
   }, [open, initialData, reset])
@@ -29,6 +33,18 @@ function KotaAsalFormModal({ open, onClose, onSubmit, initialData, loading }) {
       <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)}>
         <Input label="Name" error={errors.name?.message} {...register('name')} />
         <Input label="Province" error={errors.province?.message} {...register('province')} />
+        <div>
+          <Input
+            label="Description"
+            placeholder="e.g. Jakarta, Bogor, Depok, Tangerang, Bekasi"
+            error={errors.description?.message}
+            {...register('description')}
+          />
+          <p className="mt-1 text-xs text-text-secondary">
+            Extra search keywords — website users searching any of these words will also match this
+            city (e.g. an entry named &quot;Jabodetabek&quot; found when searching &quot;Jakarta&quot;).
+          </p>
+        </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancel

@@ -54,7 +54,11 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
 
   const cityOptions = [
     { value: OTHER_CITY_VALUE, label: 'Other' },
-    ...kotaAsal.map((c) => ({ value: c.uuid, label: c.name + (c.province ? `, ${c.province}` : '') })),
+    ...kotaAsal.map((c) => ({
+      value: c.uuid,
+      label: c.name + (c.province ? `, ${c.province}` : ''),
+      keywords: c.description,
+    })),
   ]
   const airportOptions = bandara.map((b) => ({ value: b.uuid, label: b.name }))
 

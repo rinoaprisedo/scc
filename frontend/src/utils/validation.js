@@ -55,6 +55,7 @@ export const menuSchema = z.object({
 export const kotaAsalSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   province: z.string().optional().or(z.literal('')),
+  description: z.string().optional().or(z.literal('')),
 })
 
 export const bandaraSchema = z.object({
@@ -123,4 +124,5 @@ export const pesertaSchema = z.object({
   passport_expiry: z.string().optional().or(z.literal('')),
   blazer_size: z.string().optional().or(z.literal('')),
   nomor_meja: z.string().optional().or(z.literal('')),
+  description: z.string().optional().or(z.literal('')),
 })

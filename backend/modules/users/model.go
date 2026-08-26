@@ -39,18 +39,18 @@ type User struct {
 	// non-Peserta users. Kept on this table rather than a separate profile
 	// table by deliberate choice; see the peserta module for the CRUD that
 	// manages them.
-	Title                   *string             `gorm:"type:varchar(10)" json:"title"`
-	FirstName               *string             `gorm:"type:varchar(255)" json:"first_name"`
-	MiddleName              *string             `gorm:"type:varchar(255)" json:"middle_name"`
-	LastName                *string             `gorm:"type:varchar(255)" json:"last_name"`
-	BirthDate               *time.Time          `json:"birth_date"`
-	OriginCityID            *uint64             `gorm:"index" json:"-"`
-	OriginCity              *kota_asal.KotaAsal `gorm:"foreignKey:OriginCityID" json:"origin_city,omitempty"`
-	OriginCityOther         *string             `gorm:"type:varchar(255)" json:"origin_city_other"`
-	NearestAirportID        *uint64             `gorm:"index" json:"-"`
-	NearestAirport          *bandara.Bandara    `gorm:"foreignKey:NearestAirportID" json:"nearest_airport,omitempty"`
-	DietaryRestriction      *string             `gorm:"type:varchar(50)" json:"dietary_restriction"`
-	PhoneNumber             *string             `gorm:"type:varchar(20)" json:"phone_number"`
+	Title              *string             `gorm:"type:varchar(10)" json:"title"`
+	FirstName          *string             `gorm:"type:varchar(255)" json:"first_name"`
+	MiddleName         *string             `gorm:"type:varchar(255)" json:"middle_name"`
+	LastName           *string             `gorm:"type:varchar(255)" json:"last_name"`
+	BirthDate          *time.Time          `json:"birth_date"`
+	OriginCityID       *uint64             `gorm:"index" json:"-"`
+	OriginCity         *kota_asal.KotaAsal `gorm:"foreignKey:OriginCityID" json:"origin_city,omitempty"`
+	OriginCityOther    *string             `gorm:"type:varchar(255)" json:"origin_city_other"`
+	NearestAirportID   *uint64             `gorm:"index" json:"-"`
+	NearestAirport     *bandara.Bandara    `gorm:"foreignKey:NearestAirportID" json:"nearest_airport,omitempty"`
+	DietaryRestriction *string             `gorm:"type:varchar(50)" json:"dietary_restriction"`
+	PhoneNumber        *string             `gorm:"type:varchar(20)" json:"phone_number"`
 	// KtpNumber is the login identifier ("NIK") — required, unique
 	// (idx_users_ktp_number_active), set at account creation/import and not
 	// user-editable via the website's own onboarding form. NomorKtp is a
@@ -69,6 +69,11 @@ type User struct {
 	// SelfProfileInput/selfProfileRequest, so a participant can't set their
 	// own table number via the website's self-service profile form.
 	NomorMeja *string `gorm:"type:varchar(20)" json:"nomor_meja"`
+	// Description is an admin-only free-text note (manual entry or Excel
+	// import) — same treatment as NomorMeja: deliberately absent from
+	// SelfProfileInput/selfProfileRequest so it never surfaces on the
+	// website's self-service form, only in the admin panel.
+	Description *string `gorm:"type:text" json:"description"`
 	// AttendanceStatus consolidates the attendance answer and form/shirt
 	// completeness into a single field (see modules/peserta status
 	// constants) rather than deriving a display status from

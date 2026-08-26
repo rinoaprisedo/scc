@@ -51,6 +51,7 @@ function emptyValues() {
     passport_expiry: '',
     blazer_size: '',
     nomor_meja: '',
+    description: '',
   }
 }
 
@@ -95,6 +96,7 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
               passport_expiry: initialData.passport_expiry ? initialData.passport_expiry.slice(0, 10) : '',
               blazer_size: initialData.blazer_size || '',
               nomor_meja: initialData.nomor_meja || '',
+              description: initialData.description || '',
             }
           : emptyValues(),
       )
@@ -255,6 +257,10 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
             ))}
           </Select>
           <Input label="Nomor Meja" error={errors.nomor_meja?.message} {...register('nomor_meja')} />
+          <div className="sm:col-span-2">
+            <Input label="Deskripsi" error={errors.description?.message} {...register('description')} />
+            <p className="mt-1 text-xs text-text-secondary">Catatan internal admin — tidak ditampilkan di website peserta.</p>
+          </div>
 
           <div className="sm:col-span-2">
             <FileUpload
