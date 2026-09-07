@@ -1,7 +1,17 @@
 import Modal from './Modal'
 import Button from './Button'
 
-function ConfirmDialog({ open, onClose, onConfirm, title = 'Are you sure?', message, loading }) {
+function ConfirmDialog({
+  open,
+  onClose,
+  onConfirm,
+  title = 'Are you sure?',
+  message,
+  loading,
+  confirmLabel = 'Delete',
+  loadingLabel = 'Deleting...',
+  variant = 'danger',
+}) {
   return (
     <Modal open={open} onClose={onClose} title={title} size="sm">
       <p className="text-sm text-text-secondary">
@@ -11,8 +21,8 @@ function ConfirmDialog({ open, onClose, onConfirm, title = 'Are you sure?', mess
         <Button variant="secondary" onClick={onClose} disabled={loading}>
           Cancel
         </Button>
-        <Button variant="danger" onClick={onConfirm} disabled={loading}>
-          {loading ? 'Deleting...' : 'Delete'}
+        <Button variant={variant} onClick={onConfirm} disabled={loading}>
+          {loading ? loadingLabel : confirmLabel}
         </Button>
       </div>
     </Modal>

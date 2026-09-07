@@ -13,7 +13,11 @@ export const formSchema = z
     title: z.string().min(1, 'Wajib dipilih'),
     first_name: z.string().min(1, 'Wajib diisi'),
     middle_name: z.string().optional().or(z.literal('')),
-    last_name: z.string().min(1, 'Wajib diisi'),
+    last_name: z.string().optional().or(z.literal('')),
+    // Some Indonesian passports are issued with only one name — the "hanya
+    // 1 nama" checkbox hides Nama Tengah/Nama Belakang and sets this, which
+    // the superRefine below uses to drop last_name's normally-required rule.
+    passport_single_name: z.boolean().optional(),
     birth_date: z.string().min(1, 'Wajib diisi'),
     origin_city_uuid: z.string().min(1, 'Wajib dipilih'),
     origin_city_other: z.string().optional().or(z.literal('')),
@@ -45,6 +49,9 @@ export const formSchema = z
   .superRefine((val, ctx) => {
     if (val.origin_city_uuid === 'other' && !val.origin_city_other) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['origin_city_other'], message: 'Wajib diisi' })
+    }
+    if (!val.passport_single_name && !val.last_name) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['last_name'], message: 'Wajib diisi' })
     }
   })
 

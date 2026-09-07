@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import LoginModal from '../components/LoginModal.jsx'
 import AgreementModal from '../components/AgreementModal.jsx'
 import Countdown from '../components/Countdown.jsx'
+import { getMe, logout } from '../api/auth.js'
+import { agreeDataConsent } from '../api/peserta.js'
 import bgMobile from '../assets/Microsite-04 (1).webp'
 import bgDesktop from '../assets/Microsite-03.jpg'
 import badge from '../assets/Microsite-08.webp'
@@ -19,6 +21,36 @@ function Landing() {
   const [showLogin, setShowLogin] = useState(false)
   const [showAgreement, setShowAgreement] = useState(false)
   const navigate = useNavigate()
+
+  // The consent popup should only ever show once per peserta — DataConsentAt
+  // (set by agreeDataConsent below) persists server-side, so a peserta who
+  // already agreed on a previous login skips straight to the dashboard.
+  const handleLoginSuccess = async () => {
+    setShowLogin(false)
+    try {
+      const res = await getMe()
+      if (res.data?.data_consent_at) {
+        navigate('/dashboard')
+      } else {
+        setShowAgreement(true)
+      }
+    } catch {
+      navigate('/dashboard')
+    }
+  }
+
+  const handleAgree = async () => {
+    await agreeDataConsent()
+    navigate('/dashboard')
+  }
+
+  const handleDecline = async () => {
+    try {
+      await logout()
+    } finally {
+      setShowAgreement(false)
+    }
+  }
 
   return (
     <div className="relative flex min-h-screen flex-col overflow-hidden bg-navy">
@@ -81,17 +113,9 @@ function Landing() {
         />
       </footer>
 
-      {showLogin && (
-        <LoginModal
-          onClose={() => setShowLogin(false)}
-          onLoginSuccess={() => {
-            setShowLogin(false)
-            setShowAgreement(true)
-          }}
-        />
-      )}
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLoginSuccess={handleLoginSuccess} />}
 
-      {showAgreement && <AgreementModal onAgree={() => navigate('/dashboard')} />}
+      {showAgreement && <AgreementModal onAgree={handleAgree} onDecline={handleDecline} />}
     </div>
   )
 }

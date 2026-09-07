@@ -1,7 +1,18 @@
 import { useRef } from 'react'
 import { UploadCloud, X } from 'lucide-react'
 
-function FileUpload({ label, hint, error, required, className = '', preview, alt = 'Preview', onFileSelect, onClear }) {
+function FileUpload({
+  label,
+  hint,
+  error,
+  required,
+  className = '',
+  preview,
+  alt = 'Preview',
+  onFileSelect,
+  onClear,
+  sizeNote,
+}) {
   const inputRef = useRef(null)
 
   const handleChange = (e) => {
@@ -18,6 +29,7 @@ function FileUpload({ label, hint, error, required, className = '', preview, alt
           {required && <span className="ml-0.5 text-red-500">*</span>}
         </span>
       )}
+      {sizeNote && <p className="mt-1 text-xs text-black">{sizeNote}</p>}
       <div
         className={`mt-1.5 flex items-center gap-4 rounded-xl border border-dashed bg-white p-3 transition ${
           error ? 'border-red-300' : 'border-surface-border'

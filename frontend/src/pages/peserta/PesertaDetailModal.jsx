@@ -67,6 +67,9 @@ function PesertaDetailModal({ open, onClose, peserta }) {
             <Field label="Kota Asal" value={originCity} />
             <Field label="Bandara Terdekat" value={peserta.nearest_airport?.name} />
             <Field label="Pantangan Makanan" value={dietary} />
+            <Field label="Region" value={peserta.region} />
+            <Field label="Cabang" value={peserta.cabang} />
+            <Field label="Position" value={peserta.position} />
           </div>
         </div>
 

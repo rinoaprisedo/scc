@@ -118,6 +118,9 @@ export const pesertaSchema = z.object({
   nearest_airport_uuid: z.string().optional().or(z.literal('')),
   dietary_restriction: z.string().optional().or(z.literal('')),
   phone_number: z.string().optional().or(z.literal('')),
+  region: z.string().optional().or(z.literal('')),
+  cabang: z.string().optional().or(z.literal('')),
+  position: z.string().optional().or(z.literal('')),
   ktp_number: z.string().min(1, 'NIK is required'),
   nomor_ktp: z.string().optional().or(z.literal('')),
   passport_number: z.string().optional().or(z.literal('')),
@@ -125,4 +128,5 @@ export const pesertaSchema = z.object({
   blazer_size: z.string().optional().or(z.literal('')),
   nomor_meja: z.string().optional().or(z.literal('')),
   description: z.string().optional().or(z.literal('')),
+  attendance_status: z.string().optional().or(z.literal('')),
 })

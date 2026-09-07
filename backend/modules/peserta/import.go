@@ -50,6 +50,9 @@ var importColumnDefs = []struct {
 	{"Bandara Terdekat", "nearest_airport"},
 	{"Pantangan Makanan", "dietary_restriction"},
 	{"Nomor HP", "phone_number"},
+	{"Region", "region"},
+	{"Cabang", "cabang"},
+	{"Position", "position"},
 	{"Nomor Passport", "passport_number"},
 	{"Masa Berlaku Passport (YYYY-MM-DD)", "passport_expiry"},
 	{"Blazer Size", "blazer_size"},
@@ -103,7 +106,13 @@ type ImportRowError struct {
 type ImportPreview struct {
 	TotalRows int              `json:"total_rows"`
 	Valid     int              `json:"valid"`
-	Errors    []ImportRowError `json:"errors"`
+	// ToCreate/ToUpdate split Valid by whether the row's NIK matches an
+	// existing peserta (see prepareImportRows) — shown in the admin
+	// frontend's preview step so it's clear the import isn't purely
+	// additive.
+	ToCreate int              `json:"to_create"`
+	ToUpdate int              `json:"to_update"`
+	Errors   []ImportRowError `json:"errors"`
 }
 
 // ImportResult is the real import's success response — every row in the
@@ -111,16 +120,37 @@ type ImportPreview struct {
 // there's nothing left to report per row on success.
 type ImportResult struct {
 	Created int `json:"created"`
+	Updated int `json:"updated"`
 }
 
-// preparedRow is one fully-validated, ready-to-insert row. NewAirportName
-// is set instead of resolving/creating the bandara row immediately — doing
-// that write only happens once every row in the file has passed validation
-// (see ImportExcel), so a validation-only pass never mutates master data.
+// preparedRow is one fully-validated, ready-to-insert-or-update row.
+// NewAirportName is set instead of resolving/creating the bandara row
+// immediately — doing that write only happens once every row in the file
+// has passed validation (see ImportExcel), so a validation-only pass never
+// mutates master data. IsUpdate means User was seeded from an existing
+// peserta found by NIK (see prepareImportRows) and should be saved over
+// that row rather than inserted as a new one.
 type preparedRow struct {
 	RowNum         int
 	User           users.User
 	NewAirportName string
+	IsUpdate       bool
+}
+
+// mergeStr picks the sheet's value when the column was filled in for this
+// row, or keeps whatever the existing peserta already had when the column
+// was left blank on an update row — so re-importing a partially-filled
+// sheet only overwrites the cells it actually specifies, never clears a
+// field just because that column was skipped. Always returns nil for a
+// blank cell on a create row (existing is nil there).
+func mergeStr(existing *string, value string, isUpdate bool) *string {
+	if value != "" {
+		return ptrOrNil(value)
+	}
+	if isUpdate {
+		return existing
+	}
+	return nil
 }
 
 func allBlank(values map[string]string) bool {
@@ -199,14 +229,13 @@ func (s *Service) prepareImportRows(f *excelize.File) (prepared []preparedRow, r
 			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: fmt.Sprintf("Duplicate NIK — already used in row %d of this file", prevRow)})
 			continue
 		}
-		nikExists, err := s.repo.NIKExists(nik)
+		// A NIK that already belongs to a peserta is an update row, not a
+		// rejection — see mergeStr and the user-construction branch below.
+		existing, err := s.repo.FindByNIK(nik)
 		if err != nil {
 			return nil, nil, 0, err
 		}
-		if nikExists {
-			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "NIK is already registered"})
-			continue
-		}
+		isUpdate := existing != nil
 
 		email := values["email"]
 		if email != "" && !importEmailRegex.MatchString(email) {
@@ -214,18 +243,30 @@ func (s *Service) prepareImportRows(f *excelize.File) (prepared []preparedRow, r
 			continue
 		}
 		if email == "" {
-			email = nik + placeholderEmailDomain
+			if isUpdate {
+				email = existing.Email
+			} else {
+				email = nik + placeholderEmailDomain
+			}
 		}
 		emailKey := strings.ToLower(email)
 		if prevRow, ok := seenEmail[emailKey]; ok {
 			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: fmt.Sprintf("Duplicate email — already used in row %d of this file", prevRow)})
 			continue
 		}
-		emailExists, err := s.repo.EmailExists(email)
+		var emailConflict bool
+		if isUpdate {
+			// Excludes the row's own existing account — its current email
+			// coming back around (blank cell defaulted above, or resent
+			// unchanged) must not "conflict" with itself.
+			emailConflict, err = s.repo.EmailExistsExcluding(email, existing.ID)
+		} else {
+			emailConflict, err = s.repo.EmailExists(email)
+		}
 		if err != nil {
 			return nil, nil, 0, err
 		}
-		if emailExists {
+		if emailConflict {
 			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Email is already registered"})
 			continue
 		}
@@ -258,6 +299,8 @@ func (s *Service) prepareImportRows(f *excelize.File) (prepared []preparedRow, r
 				rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Tanggal Lahir must be in YYYY-MM-DD format"})
 				continue
 			}
+		} else if isUpdate {
+			birthDate = existing.BirthDate
 		}
 		var passportExpiry *time.Time
 		if values["passport_expiry"] != "" {
@@ -266,6 +309,8 @@ func (s *Service) prepareImportRows(f *excelize.File) (prepared []preparedRow, r
 				rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Masa Berlaku Passport must be in YYYY-MM-DD format"})
 				continue
 			}
+		} else if isUpdate {
+			passportExpiry = existing.PassportExpiry
 		}
 
 		// Unlike the admin/website form (which has an explicit "Other" choice
@@ -284,6 +329,8 @@ func (s *Service) prepareImportRows(f *excelize.File) (prepared []preparedRow, r
 				rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Kota Asal must match one of the dropdown options"})
 				continue
 			}
+		} else if isUpdate {
+			cityID = existing.OriginCityID
 		}
 
 		var airportID *uint64
@@ -296,38 +343,73 @@ func (s *Service) prepareImportRows(f *excelize.File) (prepared []preparedRow, r
 			if airportID == nil {
 				newAirportName = values["nearest_airport"]
 			}
+		} else if isUpdate {
+			airportID = existing.NearestAirportID
 		}
 
 		seenNIK[nik] = rowNum
 		seenEmail[emailKey] = rowNum
 
-		attendanceStatus := StatusBelumKonfirmasi
-		user := users.User{
-			Name:               values["name"],
-			Email:              email,
-			Password:           string(hashedDefault),
-			Status:             users.StatusActive,
-			RoleID:             &roleID,
-			AttendanceStatus:   &attendanceStatus,
-			Title:              ptrOrNil(values["title"]),
-			FirstName:          ptrOrNil(values["first_name"]),
-			MiddleName:         ptrOrNil(values["middle_name"]),
-			LastName:           ptrOrNil(values["last_name"]),
-			BirthDate:          birthDate,
-			OriginCityID:       cityID,
-			NearestAirportID:   airportID,
-			DietaryRestriction: ptrOrNil(values["dietary_restriction"]),
-			PhoneNumber:        ptrOrNil(values["phone_number"]),
-			KtpNumber:          ptrOrNil(nik),
-			NomorKtp:           ptrOrNil(values["nomor_ktp"]),
-			PassportNumber:     ptrOrNil(values["passport_number"]),
-			PassportExpiry:     passportExpiry,
-			BlazerSize:         ptrOrNil(values["blazer_size"]),
-			NomorMeja:          ptrOrNil(values["nomor_meja"]),
-			Description:        ptrOrNil(values["description"]),
+		var user users.User
+		if isUpdate {
+			// Seed from the existing row so every column not touched below
+			// (password, status, attendance status, role, KTP/passport
+			// files, created_at/created_by, ...) is carried through as-is —
+			// only the fields this sheet actually supplies get overwritten.
+			user = *existing
+			user.Name = values["name"]
+			user.Email = email
+			user.Title = mergeStr(existing.Title, values["title"], true)
+			user.FirstName = mergeStr(existing.FirstName, values["first_name"], true)
+			user.MiddleName = mergeStr(existing.MiddleName, values["middle_name"], true)
+			user.LastName = mergeStr(existing.LastName, values["last_name"], true)
+			user.BirthDate = birthDate
+			user.OriginCityID = cityID
+			user.NearestAirportID = airportID
+			user.DietaryRestriction = mergeStr(existing.DietaryRestriction, values["dietary_restriction"], true)
+			user.PhoneNumber = mergeStr(existing.PhoneNumber, values["phone_number"], true)
+			user.Region = mergeStr(existing.Region, values["region"], true)
+			user.Cabang = mergeStr(existing.Cabang, values["cabang"], true)
+			user.Position = mergeStr(existing.Position, values["position"], true)
+			user.NomorKtp = mergeStr(existing.NomorKtp, values["nomor_ktp"], true)
+			user.PassportNumber = mergeStr(existing.PassportNumber, values["passport_number"], true)
+			user.PassportExpiry = passportExpiry
+			user.BlazerSize = mergeStr(existing.BlazerSize, values["blazer_size"], true)
+			user.NomorMeja = mergeStr(existing.NomorMeja, values["nomor_meja"], true)
+			user.Description = mergeStr(existing.Description, values["description"], true)
+			recomputeAttendanceStatus(&user)
+		} else {
+			attendanceStatus := StatusBelumKonfirmasi
+			user = users.User{
+				Name:               values["name"],
+				Email:              email,
+				Password:           string(hashedDefault),
+				Status:             users.StatusActive,
+				RoleID:             &roleID,
+				AttendanceStatus:   &attendanceStatus,
+				Title:              ptrOrNil(values["title"]),
+				FirstName:          ptrOrNil(values["first_name"]),
+				MiddleName:         ptrOrNil(values["middle_name"]),
+				LastName:           ptrOrNil(values["last_name"]),
+				BirthDate:          birthDate,
+				OriginCityID:       cityID,
+				NearestAirportID:   airportID,
+				DietaryRestriction: ptrOrNil(values["dietary_restriction"]),
+				PhoneNumber:        ptrOrNil(values["phone_number"]),
+				Region:             ptrOrNil(values["region"]),
+				Cabang:             ptrOrNil(values["cabang"]),
+				Position:           ptrOrNil(values["position"]),
+				KtpNumber:          ptrOrNil(nik),
+				NomorKtp:           ptrOrNil(values["nomor_ktp"]),
+				PassportNumber:     ptrOrNil(values["passport_number"]),
+				PassportExpiry:     passportExpiry,
+				BlazerSize:         ptrOrNil(values["blazer_size"]),
+				NomorMeja:          ptrOrNil(values["nomor_meja"]),
+				Description:        ptrOrNil(values["description"]),
+			}
 		}
 
-		prepared = append(prepared, preparedRow{RowNum: rowNum, User: user, NewAirportName: newAirportName})
+		prepared = append(prepared, preparedRow{RowNum: rowNum, User: user, NewAirportName: newAirportName, IsUpdate: isUpdate})
 	}
 
 	return prepared, rowErrors, totalRows, nil
@@ -347,16 +429,26 @@ func (s *Service) ValidateImportExcel(file multipart.File) (*ImportPreview, erro
 	if err != nil {
 		return nil, err
 	}
-	return &ImportPreview{TotalRows: totalRows, Valid: len(prepared), Errors: rowErrors}, nil
+	toCreate, toUpdate := 0, 0
+	for _, p := range prepared {
+		if p.IsUpdate {
+			toUpdate++
+		} else {
+			toCreate++
+		}
+	}
+	return &ImportPreview{TotalRows: totalRows, Valid: len(prepared), ToCreate: toCreate, ToUpdate: toUpdate, Errors: rowErrors}, nil
 }
 
-// ImportExcel parses an uploaded .xlsx and creates one Peserta per data row,
-// all inside a single transaction. Unlike a per-row-independent import, this
-// is deliberately all-or-nothing: if even one row fails validation, nothing
-// in the file is created — rowErrors is returned instead so the caller can
-// show exactly which rows/why, matching the admin frontend's "fix the whole
-// file, then import" flow rather than a partial import silently skipping
-// bad rows.
+// ImportExcel parses an uploaded .xlsx and creates or updates one Peserta
+// per data row — a row whose NIK matches an existing peserta updates it
+// (only the columns the sheet actually fills in, see mergeStr/
+// prepareImportRows), any other row creates a new one — all inside a single
+// transaction. Unlike a per-row-independent import, this is deliberately
+// all-or-nothing: if even one row fails validation, nothing in the file is
+// written — rowErrors is returned instead so the caller can show exactly
+// which rows/why, matching the admin frontend's "fix the whole file, then
+// import" flow rather than a partial import silently skipping bad rows.
 func (s *Service) ImportExcel(file multipart.File, actorID *uint64) (*ImportResult, []ImportRowError, error) {
 	f, err := excelize.OpenReader(file)
 	if err != nil {
@@ -378,6 +470,7 @@ func (s *Service) ImportExcel(file multipart.File, actorID *uint64) (*ImportResu
 	// Two rows can reference the same not-yet-existing airport name; dedupe
 	// within this batch so it isn't created twice inside one transaction.
 	createdAirports := map[string]uint64{}
+	created, updated := 0, 0
 	err = s.repo.DB.Transaction(func(tx *gorm.DB) error {
 		for i := range prepared {
 			p := &prepared[i]
@@ -394,9 +487,18 @@ func (s *Service) ImportExcel(file multipart.File, actorID *uint64) (*ImportResu
 					p.User.NearestAirportID = id
 				}
 			}
-			p.User.CreatedBy = actorID
-			if err := tx.Create(&p.User).Error; err != nil {
-				return fmt.Errorf("row %d: %w", p.RowNum, err)
+			if p.IsUpdate {
+				p.User.UpdatedBy = actorID
+				if err := s.repo.SaveTx(tx, &p.User); err != nil {
+					return fmt.Errorf("row %d: %w", p.RowNum, err)
+				}
+				updated++
+			} else {
+				p.User.CreatedBy = actorID
+				if err := tx.Create(&p.User).Error; err != nil {
+					return fmt.Errorf("row %d: %w", p.RowNum, err)
+				}
+				created++
 			}
 		}
 		return nil
@@ -405,7 +507,7 @@ func (s *Service) ImportExcel(file multipart.File, actorID *uint64) (*ImportResu
 		return nil, nil, err
 	}
 
-	return &ImportResult{Created: len(prepared)}, nil, nil
+	return &ImportResult{Created: created, Updated: updated}, nil, nil
 }
 
 // AllCityNames/AllAirportNames back the import template's dropdown columns
@@ -578,7 +680,7 @@ func (h *Handler) ImportExcel(c *gin.Context) {
 	}
 
 	activity_logs.LogActivity(actorID, activity_logs.ActionCreate, "peserta", "",
-		nil, gin.H{"import_created": result.Created},
+		nil, gin.H{"import_created": result.Created, "import_updated": result.Updated},
 		c.ClientIP(), c.Request.UserAgent())
 	utils.Success(c, 200, "import completed", result)
 }

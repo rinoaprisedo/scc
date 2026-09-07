@@ -51,6 +51,14 @@ type User struct {
 	NearestAirport     *bandara.Bandara    `gorm:"foreignKey:NearestAirportID" json:"nearest_airport,omitempty"`
 	DietaryRestriction *string             `gorm:"type:varchar(50)" json:"dietary_restriction"`
 	PhoneNumber        *string             `gorm:"type:varchar(20)" json:"phone_number"`
+	// Region/Cabang/Position are free-text organizational fields (the
+	// participant's work region/branch office/job title) — admin-managed
+	// like NomorMeja/Description below (manual entry or Excel import),
+	// deliberately absent from SelfProfileInput/selfProfileRequest so a
+	// participant can't set these via the website's self-service form.
+	Region   *string `gorm:"type:varchar(255)" json:"region"`
+	Cabang   *string `gorm:"type:varchar(255)" json:"cabang"`
+	Position *string `gorm:"type:varchar(255)" json:"position"`
 	// KtpNumber is the login identifier ("NIK") — required, unique
 	// (idx_users_ktp_number_active), set at account creation/import and not
 	// user-editable via the website's own onboarding form. NomorKtp is a
@@ -82,6 +90,18 @@ type User struct {
 	// "belum_konfirmasi" by readers, matching a freshly seeded/created
 	// peserta that hasn't logged into the website yet.
 	AttendanceStatus *string `gorm:"type:varchar(30)" json:"attendance_status"`
+	// DataConsentAt records when the peserta agreed to the website's
+	// Persetujuan Data Pribadi popup — nil means they haven't agreed yet, so
+	// Landing.jsx shows the popup; set once via peserta.Service.AgreeDataConsent
+	// and never cleared automatically, so the popup only ever appears once.
+	DataConsentAt *time.Time `json:"data_consent_at"`
+	// PassportSingleName means this peserta's passport has no middle/last
+	// name (some Indonesian passports are issued with only one name) — set
+	// via the website onboarding form's "nama saya di paspor hanya terdiri 1
+	// nama" checkbox. isFormComplete (modules/peserta/service.go) consults
+	// this so LastName isn't wrongly required for a peserta who genuinely
+	// doesn't have one.
+	PassportSingleName bool `gorm:"default:false" json:"passport_single_name"`
 }
 
 func (User) TableName() string { return "users" }

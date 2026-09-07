@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Plus, Pencil, Trash2, Eye, Trophy, MoreHorizontal, FileSpreadsheet, FileText, FileUp, FileDown, FileArchive } from 'lucide-react'
+import { Plus, Pencil, Trash2, Eye, Trophy, RotateCcw, MoreHorizontal, FileSpreadsheet, FileText, FileUp, FileDown, FileArchive } from 'lucide-react'
 import { format } from 'date-fns'
 import Table from '../../components/ui/Table'
 import Badge from '../../components/ui/Badge'
@@ -16,6 +16,7 @@ import {
   createPeserta,
   updatePeserta,
   deletePeserta,
+  resetPesertaProfile,
   uploadPesertaKtp,
   uploadPesertaPassport,
   exportPesertaCsv,
@@ -42,12 +43,13 @@ function Peserta() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [deleting, setDeleting] = useState(null)
+  const [resetting, setResetting] = useState(null)
   const [viewing, setViewing] = useState(null)
   const [viewingPoints, setViewingPoints] = useState(null)
   const [importOpen, setImportOpen] = useState(false)
   const [importPhase, setImportPhase] = useState('validating') // 'validating' | 'preview' | 'importing' | 'done'
   const [importPreview, setImportPreview] = useState(null)
-  const [importCreated, setImportCreated] = useState(0)
+  const [importResult, setImportResult] = useState(null)
   const [importFile, setImportFile] = useState(null)
   const fileInputRef = useRef(null)
 
@@ -115,7 +117,7 @@ function Peserta() {
     },
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['peserta'] })
-      setImportCreated(res.data.created)
+      setImportResult(res.data)
       setImportPhase('done')
     },
     onError: (err) => {
@@ -157,6 +159,16 @@ function Peserta() {
     onError: (err) => toast.error(err.response?.data?.message || 'Delete failed'),
   })
 
+  const resetMutation = useMutation({
+    mutationFn: (uuid) => resetPesertaProfile(uuid),
+    onSuccess: () => {
+      toast.success('Data peserta berhasil direset')
+      queryClient.invalidateQueries({ queryKey: ['peserta'] })
+      setResetting(null)
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Reset failed'),
+  })
+
   const columns = [
     {
       key: 'name',
@@ -171,7 +183,12 @@ function Peserta() {
               row.name?.charAt(0).toUpperCase()
             )}
           </div>
-          <span className="font-medium">{row.name}</span>
+          <div className="flex flex-col">
+            <span className="font-medium">{row.name}</span>
+            {(row.region || row.position) && (
+              <span className="text-xs text-text-secondary">{[row.region, row.position].filter(Boolean).join(' - ')}</span>
+            )}
+          </div>
         </div>
       ),
     },
@@ -217,6 +234,15 @@ function Peserta() {
               title="Edit"
             >
               <Pencil size={16} />
+            </button>
+          )}
+          {canEdit('peserta') && (
+            <button
+              onClick={() => setResetting(row)}
+              className="rounded p-1.5 hover:bg-surface-hover"
+              title="Reset data yang diisi peserta di website"
+            >
+              <RotateCcw size={16} />
             </button>
           )}
           {canDelete('peserta') && (
@@ -349,7 +375,7 @@ function Peserta() {
         onClose={() => setImportOpen(false)}
         phase={importPhase}
         preview={importPreview}
-        createdCount={importCreated}
+        importResult={importResult}
         onConfirm={confirmImport}
       />
 
@@ -369,6 +395,18 @@ function Peserta() {
         onConfirm={() => deleteMutation.mutate(deleting.uuid)}
         loading={deleteMutation.isPending}
         message={`Delete peserta "${deleting?.name}"? This cannot be undone.`}
+      />
+
+      <ConfirmDialog
+        open={!!resetting}
+        onClose={() => setResetting(null)}
+        onConfirm={() => resetMutation.mutate(resetting.uuid)}
+        loading={resetMutation.isPending}
+        title="Reset data peserta?"
+        message={`Semua data yang sudah diisi "${resetting?.name}" di website (data diri, KTP, paspor, ukuran blazer, status kehadiran) akan dikosongkan kembali seperti sebelum login. Data yang diisi admin (Nama, Email, NIK, Region, Cabang, Position, dll) tidak berubah. Aksi ini tidak bisa dibatalkan.`}
+        confirmLabel="Reset"
+        loadingLabel="Resetting..."
+        variant="danger"
       />
     </div>
   )

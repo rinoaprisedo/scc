@@ -8,7 +8,7 @@ import Button from '../../components/ui/Button'
 // prop tells it which of the four states to render. All-or-nothing by
 // design: onConfirm is only reachable once preview.errors is empty, and the
 // caller (Peserta.jsx) never calls the real import endpoint otherwise.
-function PesertaImportModal({ open, onClose, phase, preview, createdCount, onConfirm }) {
+function PesertaImportModal({ open, onClose, phase, preview, importResult, onConfirm }) {
   if (!open) return null
 
   const errors = preview?.errors || []
@@ -33,7 +33,9 @@ function PesertaImportModal({ open, onClose, phase, preview, createdCount, onCon
       {phase === 'done' && (
         <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
           <CheckCircle2 size={36} className="text-success" />
-          <p className="text-sm font-medium text-text-primary">{createdCount} peserta berhasil diimport</p>
+          <p className="text-sm font-medium text-text-primary">
+            {importResult?.created ?? 0} peserta baru ditambahkan, {importResult?.updated ?? 0} peserta diperbarui
+          </p>
           <Button className="mt-2" onClick={onClose}>
             Selesai
           </Button>
@@ -45,6 +47,8 @@ function PesertaImportModal({ open, onClose, phase, preview, createdCount, onCon
           <div className="flex flex-wrap gap-2">
             <Badge variant="neutral">{preview.total_rows} baris terbaca</Badge>
             <Badge variant="success">{preview.valid} valid</Badge>
+            {preview.to_create > 0 && <Badge variant="neutral">{preview.to_create} peserta baru</Badge>}
+            {preview.to_update > 0 && <Badge variant="neutral">{preview.to_update} akan diperbarui</Badge>}
             <Badge variant={hasErrors ? 'danger' : 'neutral'}>{errors.length} tidak valid</Badge>
           </div>
 

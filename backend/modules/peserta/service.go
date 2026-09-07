@@ -20,9 +20,10 @@ import (
 const dateLayout = "2006-01-02"
 
 var (
-	ErrNotFound              = errors.New("peserta not found")
-	ErrDuplicateEntry        = errors.New("failed to create peserta (email or NIK may already be in use)")
-	ErrPassportExpiryTooSoon = errors.New("masa berlaku paspor minimal 6 bulan setelah 10 Oktober 2026 (hingga 10 April 2027)")
+	ErrNotFound                = errors.New("peserta not found")
+	ErrDuplicateEntry          = errors.New("failed to create peserta (email or NIK may already be in use)")
+	ErrPassportExpiryTooSoon   = errors.New("masa berlaku paspor minimal 6 bulan setelah 10 Oktober 2026 (hingga 10 April 2027)")
+	ErrInvalidAttendanceStatus = errors.New("invalid attendance status")
 )
 
 // minPassportExpiry is the event date (2026-10-10) plus the standard
@@ -42,6 +43,19 @@ const (
 	StatusHadirLengkap      = "hadir_lengkap"       // answered "hadir" and Form + Shirt Size are both complete
 )
 
+// isValidAttendanceStatus backs the admin panel's manual Kehadiran override
+// on Update (see UpdateInput.AttendanceStatus) — guards against an
+// arbitrary string being written to a column the frontend otherwise only
+// ever sets via a fixed dropdown.
+func isValidAttendanceStatus(s string) bool {
+	switch s {
+	case StatusBelumKonfirmasi, StatusHadirBelumLengkap, StatusTidakHadir, StatusHadirLengkap:
+		return true
+	default:
+		return false
+	}
+}
+
 func strSet(s *string) bool {
 	return s != nil && *s != ""
 }
@@ -60,9 +74,13 @@ func strSet(s *string) bool {
 // the form for the first time (website's formSchema + FormTab's submit-block).
 func isFormComplete(u *users.User) bool {
 	cityOK := u.OriginCityID != nil || strSet(u.OriginCityOther)
+	// A peserta whose passport genuinely has only one name (PassportSingleName)
+	// never has a LastName to give — see FormTab.jsx's "hanya 1 nama"
+	// checkbox, which hides the field for them entirely.
+	nameOK := strSet(u.LastName) || u.PassportSingleName
 	return strSet(u.Title) &&
 		strSet(u.FirstName) &&
-		strSet(u.LastName) &&
+		nameOK &&
 		u.BirthDate != nil &&
 		cityOK &&
 		u.NearestAirportID != nil &&
@@ -164,6 +182,9 @@ type ProfileInput struct {
 	NearestAirportUUID string
 	DietaryRestriction string
 	PhoneNumber        string
+	Region             string
+	Cabang             string
+	Position           string
 	KtpNumber          string
 	NomorKtp           string
 	PassportNumber     string
@@ -252,6 +273,9 @@ func (s *Service) Create(in CreateInput) (*users.User, error) {
 		NearestAirportID:   airportID,
 		DietaryRestriction: ptrOrNil(in.Profile.DietaryRestriction),
 		PhoneNumber:        ptrOrNil(in.Profile.PhoneNumber),
+		Region:             ptrOrNil(in.Profile.Region),
+		Cabang:             ptrOrNil(in.Profile.Cabang),
+		Position:           ptrOrNil(in.Profile.Position),
 		KtpNumber:          ptrOrNil(in.Profile.KtpNumber),
 		NomorKtp:           ptrOrNil(in.Profile.NomorKtp),
 		PassportNumber:     ptrOrNil(in.Profile.PassportNumber),
@@ -273,13 +297,22 @@ type UpdateInput struct {
 	Email    string
 	Password string
 	Status   string
-	Profile  ProfileInput
-	ActorID  *uint64
+	// AttendanceStatus is an admin-only manual override of Kehadiran — see
+	// the recompute-vs-override branch near the end of Update. Empty means
+	// "leave it to the usual auto-recompute", matching every other optional
+	// field on this struct.
+	AttendanceStatus string
+	Profile          ProfileInput
+	ActorID          *uint64
 }
 
 // Update returns the pre-update snapshot alongside the saved record so
 // callers can log a before/after activity diff, matching users.Service.Update.
 func (s *Service) Update(uuidStr string, in UpdateInput) (before *users.User, after *users.User, err error) {
+	if in.AttendanceStatus != "" && !isValidAttendanceStatus(in.AttendanceStatus) {
+		return nil, nil, ErrInvalidAttendanceStatus
+	}
+
 	user, err := s.repo.FindByUUID(uuidStr)
 	if err != nil {
 		return nil, nil, ErrNotFound
@@ -333,6 +366,9 @@ func (s *Service) Update(uuidStr string, in UpdateInput) (before *users.User, af
 	user.OriginCityOther = ptrOrNil(in.Profile.OriginCityOther)
 	user.DietaryRestriction = ptrOrNil(in.Profile.DietaryRestriction)
 	user.PhoneNumber = ptrOrNil(in.Profile.PhoneNumber)
+	user.Region = ptrOrNil(in.Profile.Region)
+	user.Cabang = ptrOrNil(in.Profile.Cabang)
+	user.Position = ptrOrNil(in.Profile.Position)
 	user.KtpNumber = ptrOrNil(in.Profile.KtpNumber)
 	user.NomorKtp = ptrOrNil(in.Profile.NomorKtp)
 	user.PassportNumber = ptrOrNil(in.Profile.PassportNumber)
@@ -341,7 +377,12 @@ func (s *Service) Update(uuidStr string, in UpdateInput) (before *users.User, af
 	user.NomorMeja = ptrOrNil(in.Profile.NomorMeja)
 	user.Description = ptrOrNil(in.Profile.Description)
 	user.UpdatedBy = in.ActorID
-	recomputeAttendanceStatus(user)
+	if in.AttendanceStatus != "" {
+		status := in.AttendanceStatus
+		user.AttendanceStatus = &status
+	} else {
+		recomputeAttendanceStatus(user)
+	}
 
 	if err := s.repo.Save(user); err != nil {
 		return nil, nil, err
@@ -385,6 +426,10 @@ type SelfProfileInput struct {
 	PassportNumber *string
 	PassportExpiry *string
 	BlazerSize     *string
+	// PassportSingleName mirrors User.PassportSingleName — see its comment
+	// on the model. *bool for the same partial-update reason as every other
+	// field here: nil means "not part of this save".
+	PassportSingleName *bool
 }
 
 func (s *Service) UpdateProfile(userID uint64, in SelfProfileInput) (*users.User, error) {
@@ -427,6 +472,9 @@ func (s *Service) UpdateProfile(userID uint64, in SelfProfileInput) (*users.User
 	if in.LastName != nil {
 		user.LastName = ptrOrNil(*in.LastName)
 	}
+	if in.PassportSingleName != nil {
+		user.PassportSingleName = *in.PassportSingleName
+	}
 	if in.BirthDate != nil {
 		user.BirthDate = parseDate(*in.BirthDate)
 	}
@@ -457,6 +505,23 @@ func (s *Service) UpdateProfile(userID uint64, in SelfProfileInput) (*users.User
 	}
 	recomputeAttendanceStatus(user)
 
+	if err := s.repo.Save(user); err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+// AgreeDataConsent records that the current peserta clicked "Setuju &
+// Lanjutkan" on the website's Persetujuan Data Pribadi popup — set once,
+// never cleared, so Landing.jsx only shows the popup on a peserta's very
+// first login (see users.User.DataConsentAt).
+func (s *Service) AgreeDataConsent(userID uint64) (*users.User, error) {
+	user, err := s.repo.FindByUserID(userID)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	now := time.Now()
+	user.DataConsentAt = &now
 	if err := s.repo.Save(user); err != nil {
 		return nil, err
 	}
@@ -505,6 +570,52 @@ func (s *Service) UploadKtpSelf(userID uint64, file multipart.File, header *mult
 		return "", err
 	}
 	return s.storage.GetURL(path), nil
+}
+
+// ResetProfile clears every field the website's self-service forms can
+// write — everything SelfProfileInput covers (Form + Shirt Size tabs,
+// KTP/passport uploads) plus AttendanceStatus, reset back to
+// "belum_konfirmasi" — so the peserta looks exactly like they haven't
+// logged in and filled anything out yet. Admin-managed fields (Name, Email,
+// KtpNumber/NIK, Password, Status, NomorMeja, Description, Region, Cabang,
+// Position) are deliberately untouched, matching SelfProfileInput's own
+// field set. The old KtpFile/PassportFile paths are only cleared from the
+// DB column, not deleted from storage — same as every other upload path in
+// this codebase (see storage.StorageInterface), which never deletes a
+// replaced file either.
+func (s *Service) ResetProfile(uuidStr string, actorID *uint64) (before *users.User, after *users.User, err error) {
+	user, err := s.repo.FindByUUID(uuidStr)
+	if err != nil {
+		return nil, nil, ErrNotFound
+	}
+	old := *user
+
+	user.Title = nil
+	user.FirstName = nil
+	user.MiddleName = nil
+	user.LastName = nil
+	user.BirthDate = nil
+	user.OriginCityID = nil
+	user.OriginCity = nil
+	user.OriginCityOther = nil
+	user.NearestAirportID = nil
+	user.NearestAirport = nil
+	user.DietaryRestriction = nil
+	user.PhoneNumber = nil
+	user.NomorKtp = nil
+	user.PassportNumber = nil
+	user.PassportExpiry = nil
+	user.PassportFile = nil
+	user.KtpFile = nil
+	user.BlazerSize = nil
+	belumKonfirmasi := StatusBelumKonfirmasi
+	user.AttendanceStatus = &belumKonfirmasi
+	user.UpdatedBy = actorID
+
+	if err := s.repo.Save(user); err != nil {
+		return nil, nil, err
+	}
+	return &old, user, nil
 }
 
 func (s *Service) Delete(uuidStr string, actorID *uint64) (*users.User, error) {

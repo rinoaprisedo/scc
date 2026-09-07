@@ -1,6 +1,8 @@
 package peserta
 
 import (
+	"errors"
+
 	"baseadmin/backend/modules/bandara"
 	"baseadmin/backend/modules/users"
 	"baseadmin/backend/utils"
@@ -88,6 +90,33 @@ func (r *Repository) FindByUUID(uuidStr string) (*users.User, error) {
 		return nil, err
 	}
 	return &user, nil
+}
+
+// FindByNIK looks up a peserta by their login NIK (ktp_number) — backs Excel
+// import's update-existing-row path. Deliberately not preloading
+// OriginCity/NearestAirport (unlike FindByUUID/FindByUserID): import only
+// ever needs the plain FK columns, and leaving the association structs nil
+// avoids the stale-preloaded-association pitfall documented on
+// Service.Update (GORM re-syncing a belongs-to FK from a stale association
+// struct on save). Returns (nil, nil), not an error, when no row matches —
+// the caller treats that as "this is a new peserta to create".
+func (r *Repository) FindByNIK(nik string) (*users.User, error) {
+	var user users.User
+	err := r.scope().Where("users.ktp_number = ?", nik).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+// SaveTx mirrors Save but runs inside a caller-supplied transaction — used by
+// Excel import's update path, which must roll back alongside any other row
+// in the same batch that fails (see ImportExcel).
+func (r *Repository) SaveTx(tx *gorm.DB, user *users.User) error {
+	return tx.Model(user).Select("*").Updates(user).Error
 }
 
 // FindByUserID is FindByUUID keyed by numeric ID instead — used by the
@@ -233,6 +262,16 @@ func (r *Repository) NIKExists(nik string) (bool, error) {
 func (r *Repository) EmailExists(email string) (bool, error) {
 	var count int64
 	err := r.DB.Model(&users.User{}).Where("email = ?", email).Count(&count).Error
+	return count > 0, err
+}
+
+// EmailExistsExcluding mirrors EmailExists but ignores one row's own ID —
+// used when Excel import updates an existing peserta by NIK and the sheet
+// carries that same peserta's current email back in (which would otherwise
+// always "conflict" with itself).
+func (r *Repository) EmailExistsExcluding(email string, excludeID uint64) (bool, error) {
+	var count int64
+	err := r.DB.Model(&users.User{}).Where("email = ? AND id <> ?", email, excludeID).Count(&count).Error
 	return count > 0, err
 }
 

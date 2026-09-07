@@ -10,6 +10,7 @@ export const createPeserta = (payload) => client.post('/peserta', payload).then(
 export const updatePeserta = (uuid, payload) => client.put(`/peserta/${uuid}`, payload).then((r) => r.data)
 export const deletePeserta = (uuid) => client.delete(`/peserta/${uuid}`).then((r) => r.data)
 export const updatePesertaStatus = (uuid, status) => client.put(`/peserta/${uuid}/status`, { status }).then((r) => r.data)
+export const resetPesertaProfile = (uuid) => client.put(`/peserta/${uuid}/reset`).then((r) => r.data)
 export const getPesertaPointHistory = (uuid) => client.get(`/peserta/${uuid}/points`).then((r) => r.data)
 export const uploadPesertaKtp = (uuid, formData) =>
   client.post(`/peserta/${uuid}/ktp`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data)

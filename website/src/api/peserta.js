@@ -7,3 +7,4 @@ export const uploadMyPassport = (formData) =>
   client.post('/peserta/me/passport', formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data)
 export const setMyAttendance = (confirmed) =>
   client.put('/peserta/me/attendance', { confirmed }).then((r) => r.data)
+export const agreeDataConsent = () => client.put('/peserta/me/consent').then((r) => r.data)

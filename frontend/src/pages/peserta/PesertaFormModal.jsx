@@ -8,6 +8,7 @@ import Button from '../../components/ui/Button'
 import FileUpload from '../../components/ui/FileUpload'
 import { pesertaSchema } from '../../utils/validation'
 import { fileURL } from '../../utils/url'
+import { ATTENDANCE_LABELS } from '../../utils/attendance'
 
 const DIETARY_OPTIONS = [
   'tidak ada pantangan',
@@ -47,11 +48,15 @@ function emptyValues() {
     nearest_airport_uuid: '',
     dietary_restriction: '',
     phone_number: '',
+    region: '',
+    cabang: '',
+    position: '',
     passport_number: '',
     passport_expiry: '',
     blazer_size: '',
     nomor_meja: '',
     description: '',
+    attendance_status: 'belum_konfirmasi',
   }
 }
 
@@ -92,11 +97,15 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
               nearest_airport_uuid: initialData.nearest_airport?.uuid || '',
               dietary_restriction: initialData.dietary_restriction || '',
               phone_number: initialData.phone_number || '',
+              region: initialData.region || '',
+              cabang: initialData.cabang || '',
+              position: initialData.position || '',
               passport_number: initialData.passport_number || '',
               passport_expiry: initialData.passport_expiry ? initialData.passport_expiry.slice(0, 10) : '',
               blazer_size: initialData.blazer_size || '',
               nomor_meja: initialData.nomor_meja || '',
               description: initialData.description || '',
+              attendance_status: initialData.attendance_status || 'belum_konfirmasi',
             }
           : emptyValues(),
       )
@@ -145,6 +154,16 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
             <option value="inactive">Inactive</option>
             <option value="suspended">Suspended</option>
           </Select>
+
+          {initialData && (
+            <Select label="Kehadiran" error={errors.attendance_status?.message} {...register('attendance_status')}>
+              {Object.entries(ATTENDANCE_LABELS).map(([value, { text }]) => (
+                <option key={value} value={value}>
+                  {text}
+                </option>
+              ))}
+            </Select>
+          )}
 
           <Select label="Title" error={errors.title?.message} {...register('title')}>
             <option value="Mr">Mr</option>
@@ -216,6 +235,10 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
             error={errors.phone_number?.message}
             {...register('phone_number')}
           />
+
+          <Input label="Region" error={errors.region?.message} {...register('region')} />
+          <Input label="Cabang" error={errors.cabang?.message} {...register('cabang')} />
+          <Input label="Position" error={errors.position?.message} {...register('position')} />
 
           <Input label="Nomor Paspor" error={errors.passport_number?.message} {...register('passport_number')} />
           <Input

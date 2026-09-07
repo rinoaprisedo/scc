@@ -40,6 +40,7 @@ function defaultsFrom(user) {
     nomor_ktp: user.nomor_ktp || '',
     passport_number: user.passport_number || '',
     passport_expiry: user.passport_expiry ? user.passport_expiry.slice(0, 10) : '',
+    passport_single_name: user.passport_single_name || false,
   }
 }
 
@@ -77,6 +78,7 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
   const [passportGrandfathered] = useState(() => isFormComplete(user))
 
   const originCityUuid = watch('origin_city_uuid')
+  const passportSingleName = watch('passport_single_name')
 
   useEffect(() => () => onSubmittingChange(false), [onSubmittingChange])
 
@@ -132,20 +134,29 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
       </Select>
       <Input label="Tanggal Lahir" required type="date" error={errors.birth_date?.message} {...register('birth_date')} />
 
-      <Input
-        label="Nama Depan (Sesuai Paspor)"
-        required
-        error={errors.first_name?.message}
-        {...register('first_name')}
-      />
-      <Input label="Nama Tengah (Sesuai Paspor)" error={errors.middle_name?.message} {...register('middle_name')} />
-      <Input
-        label="Nama Belakang (Sesuai Paspor)"
-        required
-        className="sm:col-span-2"
-        error={errors.last_name?.message}
-        {...register('last_name')}
-      />
+      <div className="sm:col-span-2">
+        <Input
+          label="Nama Depan (Sesuai Paspor)"
+          required
+          error={errors.first_name?.message}
+          {...register('first_name')}
+        />
+        <label className="mt-2 flex items-center gap-2 text-xs font-medium text-text-secondary">
+          <input type="checkbox" className="h-4 w-4 rounded border-surface-border" {...register('passport_single_name')} />
+          Nama saya di paspor hanya terdiri 1 nama
+        </label>
+      </div>
+      {!passportSingleName && (
+        <>
+          <Input label="Nama Tengah (Sesuai Paspor)" error={errors.middle_name?.message} {...register('middle_name')} />
+          <Input
+            label="Nama Belakang (Sesuai Paspor)"
+            required
+            error={errors.last_name?.message}
+            {...register('last_name')}
+          />
+        </>
+      )}
 
       <div>
         <Controller
@@ -229,6 +240,7 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
           label="Mohon upload copy KTP Anda"
           required
           hint="JPEG, PNG, or WebP"
+          sizeNote="Ukuran file maksimal 10MB"
           error={ktpError}
           preview={ktpPreview}
           onFileSelect={(file) => {
@@ -245,7 +257,6 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
             setKtpPreview(null)
           }}
         />
-        {!ktpError && <p className="mt-1.5 text-xs font-medium text-red-600">Ukuran file maksimal 10MB</p>}
       </div>
 
       <div className="sm:col-span-2">
@@ -253,6 +264,7 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
           label="Mohon upload copy paspor Anda"
           required={!passportGrandfathered}
           hint="JPEG, PNG, or WebP"
+          sizeNote="Ukuran file maksimal 10MB"
           error={passportError}
           preview={passportPreview}
           alt="Paspor preview"
@@ -270,7 +282,6 @@ function FormTab({ user, kotaAsal, bandara, formId, onSaved, onSubmittingChange 
             setPassportPreview(null)
           }}
         />
-        {!passportError && <p className="mt-1.5 text-xs font-medium text-red-600">Ukuran file maksimal 10MB</p>}
       </div>
 
       <div className="sm:col-span-2">

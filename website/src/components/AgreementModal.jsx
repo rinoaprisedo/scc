@@ -1,6 +1,18 @@
+import { useState } from 'react'
 import Button from './ui/Button'
 
-function AgreementModal({ onAgree }) {
+function AgreementModal({ onAgree, onDecline }) {
+  const [loading, setLoading] = useState(false)
+
+  const handleAgree = async () => {
+    setLoading(true)
+    try {
+      await onAgree()
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-dark/70 px-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl">
@@ -20,9 +32,14 @@ function AgreementModal({ onAgree }) {
           tidak digunakan untuk tujuan lain di luar keperluan tersebut.
         </p>
 
-        <Button className="mt-7 w-full" onClick={onAgree}>
-          Saya Setuju dan Lanjutkan
-        </Button>
+        <div className="mt-7 flex gap-3">
+          <Button type="button" variant="secondary" className="flex-1" onClick={onDecline} disabled={loading}>
+            Tidak Setuju
+          </Button>
+          <Button type="button" className="flex-1" onClick={handleAgree} disabled={loading}>
+            {loading ? 'Menyimpan...' : 'Setuju & Lanjutkan'}
+          </Button>
+        </div>
       </div>
     </div>
   )

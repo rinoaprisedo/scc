@@ -130,10 +130,14 @@ type profileRequest struct {
 	PassportNumber     string `json:"passport_number"`
 	PassportExpiry     string `json:"passport_expiry"`
 	BlazerSize         string `json:"blazer_size"`
-	// NomorMeja and Description are admin-only (see User.NomorMeja /
-	// User.Description) — deliberately absent from selfProfileRequest below.
+	// NomorMeja, Description, Region, Cabang, and Position are admin-only
+	// (see User.NomorMeja / User.Description / User.Region / User.Cabang /
+	// User.Position) — deliberately absent from selfProfileRequest below.
 	NomorMeja   string `json:"nomor_meja"`
 	Description string `json:"description"`
+	Region      string `json:"region"`
+	Cabang      string `json:"cabang"`
+	Position    string `json:"position"`
 }
 
 func (r profileRequest) toInput() ProfileInput {
@@ -155,6 +159,9 @@ func (r profileRequest) toInput() ProfileInput {
 		BlazerSize:         r.BlazerSize,
 		NomorMeja:          r.NomorMeja,
 		Description:        r.Description,
+		Region:             r.Region,
+		Cabang:             r.Cabang,
+		Position:           r.Position,
 	}
 }
 
@@ -207,6 +214,10 @@ type updateRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 	Status   string `json:"status"`
+	// AttendanceStatus is an admin-only manual Kehadiran override — empty
+	// leaves it to Service.Update's usual auto-recompute. See
+	// peserta.isValidAttendanceStatus for the accepted values.
+	AttendanceStatus string `json:"attendance_status" binding:"omitempty,oneof=belum_konfirmasi hadir_belum_lengkap tidak_hadir hadir_lengkap"`
 	profileRequest
 }
 
@@ -228,16 +239,21 @@ func (h *Handler) Update(c *gin.Context) {
 
 	actorID := utils.CurrentUserID(c)
 	before, after, err := h.Service.Update(c.Param("uuid"), UpdateInput{
-		Name:     req.Name,
-		Email:    req.Email,
-		Password: req.Password,
-		Status:   req.Status,
-		Profile:  req.profileRequest.toInput(),
-		ActorID:  actorID,
+		Name:             req.Name,
+		Email:            req.Email,
+		Password:         req.Password,
+		Status:           req.Status,
+		AttendanceStatus: req.AttendanceStatus,
+		Profile:          req.profileRequest.toInput(),
+		ActorID:          actorID,
 	})
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			utils.Error(c, 404, "peserta not found")
+			return
+		}
+		if errors.Is(err, ErrInvalidAttendanceStatus) {
+			utils.Error(c, 400, err.Error())
 			return
 		}
 		utils.Error(c, 400, "failed to update peserta")
@@ -246,6 +262,30 @@ func (h *Handler) Update(c *gin.Context) {
 
 	activity_logs.LogActivity(actorID, activity_logs.ActionUpdate, "peserta", after.UUID.String(), before, after, c.ClientIP(), c.Request.UserAgent())
 	utils.Success(c, 200, "peserta updated", after)
+}
+
+// ResetProfile godoc
+// @Summary		Reset a peserta's self-service profile data back to the pre-onboarding state
+// @Tags			peserta
+// @Security		SessionCookie
+// @Param			uuid	path		string	true	"Peserta UUID"
+// @Success		200		{object}	utils.Response
+// @Failure		404		{object}	utils.Response
+// @Router			/peserta/{uuid}/reset [put]
+func (h *Handler) ResetProfile(c *gin.Context) {
+	actorID := utils.CurrentUserID(c)
+	before, after, err := h.Service.ResetProfile(c.Param("uuid"), actorID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			utils.Error(c, 404, "peserta not found")
+			return
+		}
+		utils.Error(c, 400, "failed to reset peserta profile")
+		return
+	}
+
+	activity_logs.LogActivity(actorID, activity_logs.ActionUpdate, "peserta", after.UUID.String(), before, after, c.ClientIP(), c.Request.UserAgent())
+	utils.Success(c, 200, "peserta profile reset", after)
 }
 
 // Delete godoc
@@ -334,6 +374,9 @@ type selfProfileRequest struct {
 	PassportNumber *string `json:"passport_number"`
 	PassportExpiry *string `json:"passport_expiry"`
 	BlazerSize     *string `json:"blazer_size"`
+	// PassportSingleName backs the "nama saya di paspor hanya terdiri 1
+	// nama" checkbox — see User.PassportSingleName.
+	PassportSingleName *bool `json:"passport_single_name"`
 }
 
 func (r selfProfileRequest) toInput() SelfProfileInput {
@@ -352,6 +395,7 @@ func (r selfProfileRequest) toInput() SelfProfileInput {
 		PassportNumber:     r.PassportNumber,
 		PassportExpiry:     r.PassportExpiry,
 		BlazerSize:         r.BlazerSize,
+		PassportSingleName: r.PassportSingleName,
 	}
 }
 
@@ -387,6 +431,31 @@ func (h *Handler) UpdateMe(c *gin.Context) {
 		return
 	}
 	utils.Success(c, 200, "profile updated", user)
+}
+
+// AgreeDataConsent godoc
+// @Summary		Record the current peserta's agreement to the Persetujuan Data Pribadi popup
+// @Tags			peserta
+// @Security		SessionCookie
+// @Success		200	{object}	utils.Response
+// @Failure		401	{object}	utils.Response
+// @Router			/peserta/me/consent [put]
+func (h *Handler) AgreeDataConsent(c *gin.Context) {
+	userID := utils.CurrentUserID(c)
+	if userID == nil {
+		utils.Error(c, 401, "authentication required")
+		return
+	}
+	user, err := h.Service.AgreeDataConsent(*userID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			utils.Error(c, 404, "peserta not found")
+			return
+		}
+		utils.Error(c, 400, "failed to save consent")
+		return
+	}
+	utils.Success(c, 200, "consent saved", user)
 }
 
 type attendanceRequest struct {

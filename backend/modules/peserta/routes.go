@@ -9,6 +9,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, sessionAuth gin.HandlerFun
 	// not the admin-permission-gated routes below. Session auth only.
 	g.PUT("/me", sessionAuth, h.UpdateMe)
 	g.PUT("/me/attendance", sessionAuth, h.SetMyAttendance)
+	g.PUT("/me/consent", sessionAuth, h.AgreeDataConsent)
 	g.POST("/me/ktp", sessionAuth, uploadLimiter, h.UploadMyKtp)
 	g.POST("/me/passport", sessionAuth, uploadLimiter, h.UploadMyPassport)
 
@@ -25,6 +26,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, sessionAuth gin.HandlerFun
 	g.PUT("/:uuid", guard("peserta", "edit"), h.Update)
 	g.DELETE("/:uuid", guard("peserta", "delete"), h.Delete)
 	g.PUT("/:uuid/status", guard("peserta", "edit"), h.UpdateStatus)
+	g.PUT("/:uuid/reset", guard("peserta", "edit"), h.ResetProfile)
 	g.POST("/:uuid/ktp", guard("peserta", "edit"), uploadLimiter, h.UploadKtp)
 	g.POST("/:uuid/passport", guard("peserta", "edit"), uploadLimiter, h.UploadPassport)
 }
