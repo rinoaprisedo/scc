@@ -36,6 +36,7 @@ import (
 	"baseadmin/backend/modules/qris_cross_border"
 	"baseadmin/backend/modules/roles"
 	"baseadmin/backend/modules/settings"
+	"baseadmin/backend/modules/sliders"
 	"baseadmin/backend/modules/users"
 	"baseadmin/backend/storage"
 	"baseadmin/backend/utils"
@@ -74,7 +75,7 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(middleware.CORSMiddleware(cfg.FrontendURL))
 	router.Use(middleware.SecurityHeaders())
-	router.Use(middleware.RequestSizeLimit(10 << 20))
+	router.Use(middleware.RequestSizeLimit(50 << 20))
 	router.Use(middleware.CSRF(cfg.AppEnv == "production", cfg.CookieDomain))
 	router.Use(middleware.XSSSanitizer())
 	router.Use(middleware.MaintenanceMode(rdb, db))
@@ -150,6 +151,9 @@ func main() {
 
 	settingsHandler := settings.NewHandler(db, rdb, fileStorage)
 	settingsHandler.RegisterRoutes(api, guard, uploadLimiter)
+
+	slidersHandler := sliders.NewHandler(db, fileStorage)
+	slidersHandler.RegisterRoutes(api, sessionAuth, guard, uploadLimiter)
 
 	activityLogsHandler := activity_logs.NewHandler(db, cfg)
 	activityLogsHandler.RegisterRoutes(api, guard)

@@ -1,6 +1,8 @@
 package qr_gate
 
 import (
+	"strconv"
+
 	"baseadmin/backend/modules/activity_logs"
 	"baseadmin/backend/utils"
 
@@ -202,6 +204,23 @@ func (h *Handler) Scan(c *gin.Context) {
 		"points_awarded":  result.PointsAwarded,
 		"scanned_at":      result.ScannedAt,
 	})
+}
+
+// Leaderboard godoc
+// @Summary		List the top participants ranked by total QR gate points
+// @Tags			qr-gate
+// @Security		SessionCookie
+// @Param			limit	query		int	false	"Number of entries to return (default 10, max 100)"
+// @Success		200		{object}	utils.Response
+// @Router			/qr-gate/leaderboard [get]
+func (h *Handler) Leaderboard(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	list, err := h.Service.Leaderboard(limit)
+	if err != nil {
+		utils.Error(c, 500, "failed to fetch leaderboard")
+		return
+	}
+	utils.Success(c, 200, "ok", list)
 }
 
 // MyScans godoc

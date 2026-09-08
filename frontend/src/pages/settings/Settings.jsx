@@ -126,6 +126,11 @@ const MENU_TOGGLES = [
   { key: 'menu_event_information_enabled', label: 'Event Information' },
 ]
 
+// Not a home-tile toggle like MENU_TOGGLES above — checking this swaps the
+// participant website's slider carousel slots for real leaderboard content.
+// Kept in its own list so it can render with different copy/default.
+const LEADERBOARD_TOGGLE = { key: 'menu_leaderboard_enabled', label: 'Leaderboard' }
+
 function isPdf(path) {
   return !!path && path.toLowerCase().endsWith('.pdf')
 }
@@ -159,6 +164,9 @@ function Settings() {
       MENU_TOGGLES.forEach(({ key }) => {
         toggles[key] = map[key] !== 'false' // missing key defaults to enabled
       })
+      // Opposite default from MENU_TOGGLES — a missing/unseeded key means
+      // "off", not "on", since this replaces content rather than hiding a tile.
+      toggles[LEADERBOARD_TOGGLE.key] = map[LEADERBOARD_TOGGLE.key] === 'true'
       setMenuToggles(toggles)
       setRegistrationDeadline(map.registration_deadline || '')
       setFormEditDeadline(map.form_edit_deadline || '')
@@ -216,6 +224,7 @@ function Settings() {
     MENU_TOGGLES.forEach(({ key }) => {
       payload[key] = menuToggles[key] ? 'true' : 'false'
     })
+    payload[LEADERBOARD_TOGGLE.key] = menuToggles[LEADERBOARD_TOGGLE.key] ? 'true' : 'false'
     saveMutation.mutate(payload)
   }
 
@@ -387,6 +396,23 @@ function Settings() {
                 </label>
               ))}
             </div>
+
+            <div className="border-t border-surface-border pt-4">
+              <p className="mb-2 text-sm text-text-secondary">
+                When checked, the slider carousel on the participant website's home page (both the desktop and
+                mobile slots) is replaced with the real-time leaderboard instead.
+              </p>
+              <label className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={menuToggles[LEADERBOARD_TOGGLE.key] ?? false}
+                  onChange={handleMenuToggleChange(LEADERBOARD_TOGGLE.key)}
+                  className="h-4 w-4 accent-primary"
+                />
+                <span className="text-sm text-text-primary">{LEADERBOARD_TOGGLE.label}</span>
+              </label>
+            </div>
+
             <Button onClick={handleSaveMenuToggles} disabled={saveMutation.isPending}>
               Save
             </Button>

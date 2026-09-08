@@ -55,7 +55,7 @@ func SecurityHeaders() gin.HandlerFunc {
 	}
 }
 
-// RequestSizeLimit caps request body size (default 10MB).
+// RequestSizeLimit caps request body size.
 func RequestSizeLimit(maxBytes int64) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Request.Body = MaxBytesReader(c, c.Request.Body, maxBytes)

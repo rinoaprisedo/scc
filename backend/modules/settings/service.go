@@ -66,6 +66,11 @@ var publicKeys = map[string]bool{
 	"menu_scanner_qr_enabled":        true,
 	"menu_history_scanner_enabled":   true,
 	"menu_event_information_enabled": true,
+	// Not a home-tile toggle like the ones above — when "true", the
+	// participant website swaps its slider carousel slots (both the
+	// desktop TopRankCard box and the mobile banner) for real leaderboard
+	// content instead. See qr_gate.Service.Leaderboard for the ranking data.
+	"menu_leaderboard_enabled": true,
 
 	// Deadlines (datetime-local strings, "" = no deadline) the participant
 	// website compares against the current time client-side to decide

@@ -67,6 +67,11 @@ export const blazerSizeSchema = z.object({
   stock: z.coerce.number().int('Stock must be a whole number').min(0, 'Stock cannot be negative'),
 })
 
+export const sliderSchema = z.object({
+  type: z.enum(['desktop', 'mobile'], { errorMap: () => ({ message: 'Type is required' }) }),
+  is_active: z.boolean().optional(),
+})
+
 export const qrGateSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   code: z

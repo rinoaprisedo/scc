@@ -3,6 +3,7 @@ package qr_gate
 import (
 	"baseadmin/backend/utils"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -112,4 +113,34 @@ func (r *Repository) ListScansForUser(userID uint64) ([]QrGateScan, error) {
 	var list []QrGateScan
 	err := r.DB.Preload("QrGate", unscopedPreload).Where("user_id = ?", userID).Order("created_at desc").Find(&list).Error
 	return list, err
+}
+
+// pesertaRoleName mirrors the same constant independently defined in
+// blazer_sizes and peserta — kept local rather than a shared import, same
+// precedent as blazer_sizes.Repository.
+const pesertaRoleName = "Peserta"
+
+// LeaderboardRow is one ranked participant — Points is a SUM across every
+// qr_gate_scans row for that user (0 via COALESCE for a peserta who hasn't
+// scanned anything yet), not a stored counter.
+type LeaderboardRow struct {
+	UUID   uuid.UUID
+	Name   string
+	Points int64
+}
+
+// Leaderboard ranks every Peserta-role user by total QR gate points, highest
+// first, name ascending to break ties. The LEFT JOIN (not INNER) keeps a
+// peserta with zero scans on the board at 0 points instead of omitting them.
+func (r *Repository) Leaderboard(limit int) ([]LeaderboardRow, error) {
+	var rows []LeaderboardRow
+	err := r.DB.Table("users AS u").
+		Select("u.uuid AS uuid, u.name AS name, COALESCE(SUM(s.points_awarded), 0) AS points").
+		Joins("LEFT JOIN qr_gate_scans s ON s.user_id = u.id").
+		Where("u.deleted_at IS NULL AND u.role_id = (SELECT id FROM roles WHERE name = ?)", pesertaRoleName).
+		Group("u.id, u.uuid, u.name").
+		Order("points DESC, u.name ASC").
+		Limit(limit).
+		Scan(&rows).Error
+	return rows, err
 }

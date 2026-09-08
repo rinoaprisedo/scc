@@ -17,7 +17,8 @@ import {
 } from 'lucide-react'
 import { getMe, logout } from '../api/auth'
 import { getPublicSettings } from '../api/settings'
-import { getMyScans } from '../api/qrGate'
+import { getMyScans, getLeaderboard } from '../api/qrGate'
+import { getActiveSliders } from '../api/sliders'
 import AttendanceModal from '../components/onboarding/AttendanceModal'
 import DeclinedScreen from '../components/onboarding/DeclinedScreen'
 import NoticeScreen from '../components/onboarding/NoticeScreen'
@@ -31,6 +32,7 @@ import QrisCrossBorderModal from '../components/QrisCrossBorderModal'
 import Carousel from '../components/ui/Carousel'
 import { isFormComplete } from '../utils/onboarding'
 import { isPastDeadline } from '../utils/deadline'
+import { fileURL } from '../utils/url'
 import bgDesktop from '../assets/Microsite-02.webp'
 import bgMobile from '../assets/Microsite-01 (1).webp'
 import danamonLogo from '../assets/Single Logo_Logo White.webp'
@@ -89,18 +91,57 @@ function isMenuEnabled(publicSettings, settingKey) {
   return publicSettings[settingKey] !== 'false'
 }
 
-// Leaderboard is still being designed — standing in with a banner carousel
-// for now (see Carousel's own comment: ready for more slides later without
-// a rewrite).
-function TopRankCard() {
+// Ranked list of participants by total QR gate points — rendered in place
+// of the slider carousel in both layout slots (desktop TopRankCard box +
+// mobile banner) whenever the admin's "Leaderboard" website-menu toggle is
+// on (see settings.menu_leaderboard_enabled).
+function LeaderboardCard({ entries, className = '' }) {
+  const rankBadgeClass = (rank) => {
+    if (rank === 1) return 'bg-gold text-navy-dark'
+    if (rank === 2) return 'bg-white/70 text-navy-dark'
+    if (rank === 3) return 'bg-amber-700 text-white'
+    return 'bg-white/10 text-white/70'
+  }
+
   return (
-    <div className="order-last hidden w-full md:block lg:order-none lg:w-[34rem] lg:shrink-0">
-      <Carousel
-        images={[{ src: leaderboardBanner, alt: 'Top Rank Group' }]}
-        className="border-2 border-gold-light/60"
-      />
+    <div className={`flex flex-col gap-3 rounded-2xl border-2 border-gold-light/60 bg-navy p-5 ${className}`}>
+      <div className="flex items-center gap-2 text-gold">
+        <Trophy size={18} />
+        <p className="text-base font-bold text-white">Leaderboard</p>
+      </div>
+      {entries.length === 0 ? (
+        <p className="py-6 text-center text-sm text-white/50">Belum ada data</p>
+      ) : (
+        <ol className="flex flex-col gap-2">
+          {entries.map((entry) => (
+            <li
+              key={entry.uuid}
+              className="flex items-center justify-between gap-3 rounded-xl bg-navy-light/60 px-3 py-2"
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                <span
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${rankBadgeClass(entry.rank)}`}
+                >
+                  {entry.rank}
+                </span>
+                <span className="truncate text-sm font-medium text-white">{entry.name}</span>
+              </div>
+              <span className="shrink-0 text-sm font-bold text-gold">{entry.points} Poin</span>
+            </li>
+          ))}
+        </ol>
+      )}
     </div>
   )
+}
+
+// Banner carousel slot — images come from the admin-managed Sliders module
+// (filtered to this slot's type), falling back to a static asset when
+// nothing has been uploaded/activated yet so the box never renders empty.
+function SliderCard({ sliders, fallback, fallbackAlt, className = '' }) {
+  const images =
+    sliders.length > 0 ? sliders.map((s) => ({ src: fileURL(s.image), alt: 'Slider' })) : [{ src: fallback, alt: fallbackAlt }]
+  return <Carousel images={images} className={className} />
 }
 
 function Dashboard() {
@@ -116,6 +157,8 @@ function Dashboard() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [qrisOpen, setQrisOpen] = useState(false)
   const [totalPoints, setTotalPoints] = useState(0)
+  const [sliders, setSliders] = useState([])
+  const [leaderboard, setLeaderboard] = useState([])
 
   const refreshUser = () => getMe().then((res) => setUser(res.data))
   const refreshPoints = () => getMyScans().then((res) => setTotalPoints(res.data?.total_points || 0))
@@ -128,6 +171,12 @@ function Dashboard() {
       .then((res) => setPublicSettings(res.data || {}))
       .catch(() => {})
     refreshPoints().catch(() => {})
+    getActiveSliders()
+      .then((res) => setSliders(res.data || []))
+      .catch(() => {})
+    getLeaderboard(10)
+      .then((res) => setLeaderboard(res.data || []))
+      .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate])
 
@@ -146,6 +195,9 @@ function Dashboard() {
   const stage = onboardingStage(user)
   const registrationClosed = isPastDeadline(publicSettings.registration_deadline)
   const formEditClosed = isPastDeadline(publicSettings.form_edit_deadline)
+  const leaderboardEnabled = publicSettings.menu_leaderboard_enabled === 'true'
+  const desktopSliders = sliders.filter((s) => s.type === 'desktop')
+  const mobileSliders = sliders.filter((s) => s.type === 'mobile')
 
   const handleOpenEditForm = () => {
     if (formEditClosed) {
@@ -197,13 +249,30 @@ function Dashboard() {
 
       {stage === 'done' && (
         <div className="relative mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-6 pb-10 sm:px-10 lg:flex-row">
-          <TopRankCard />
+          <div className="order-last hidden w-full md:block lg:order-none lg:w-[34rem] lg:shrink-0">
+            {leaderboardEnabled ? (
+              <LeaderboardCard entries={leaderboard} />
+            ) : (
+              <SliderCard
+                sliders={desktopSliders}
+                fallback={leaderboardBanner}
+                fallbackAlt="Top Rank Group"
+                className="border-2 border-gold-light/60"
+              />
+            )}
+          </div>
 
           <div className="flex flex-1 flex-col gap-6">
-            <Carousel
-              images={[{ src: profileBanner, alt: '' }]}
-              className="border-2 border-gold-light/60 shadow-lg md:hidden"
-            />
+            {leaderboardEnabled ? (
+              <LeaderboardCard entries={leaderboard} className="shadow-lg md:hidden" />
+            ) : (
+              <SliderCard
+                sliders={mobileSliders}
+                fallback={profileBanner}
+                fallbackAlt=""
+                className="border-2 border-gold-light/60 shadow-lg md:hidden"
+              />
+            )}
 
             <div className="relative flex flex-col items-center gap-6 overflow-hidden rounded-2xl border-2 border-gold-light/60 bg-navy p-7 text-center shadow-lg sm:flex-row sm:items-center sm:justify-between sm:p-9 sm:text-left">
               <div className="relative flex flex-col items-center gap-3 sm:flex-row sm:items-center sm:gap-5">

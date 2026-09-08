@@ -102,8 +102,7 @@ function OnboardingModal({ user, onUpdated, onCancel, mode = 'onboarding', onClo
               label="Blazer Size"
               complete={isShirtComplete(user)}
               active={activeTab === 'shirt'}
-              disabled={!formDone}
-              onClick={() => formDone && setActiveTab('shirt')}
+              onClick={() => setActiveTab('shirt')}
             />
           </div>
           <div className="relative h-0.5 w-full bg-surface-border">

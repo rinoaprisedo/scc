@@ -185,6 +185,33 @@ type ScanWithGate struct {
 	GateName      string    `json:"gate_name"`
 }
 
+// LeaderboardEntry is what /qr-gate/leaderboard returns to the website —
+// Rank is computed here (1-based position in the sorted result), not stored.
+type LeaderboardEntry struct {
+	Rank   int       `json:"rank"`
+	UUID   uuid.UUID `json:"uuid"`
+	Name   string    `json:"name"`
+	Points int64     `json:"points"`
+}
+
+// Leaderboard returns the top `limit` participants by total points, clamped
+// to a sane range so an unbounded/absurd query param can't force a full
+// table aggregation.
+func (s *Service) Leaderboard(limit int) ([]LeaderboardEntry, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 10
+	}
+	rows, err := s.repo.Leaderboard(limit)
+	if err != nil {
+		return nil, err
+	}
+	list := make([]LeaderboardEntry, 0, len(rows))
+	for i, row := range rows {
+		list = append(list, LeaderboardEntry{Rank: i + 1, UUID: row.UUID, Name: row.Name, Points: row.Points})
+	}
+	return list, nil
+}
+
 func (s *Service) MyScans(userID uint64) (scans []ScanWithGate, totalPoints int, err error) {
 	rows, err := s.repo.ListScansForUser(userID)
 	if err != nil {

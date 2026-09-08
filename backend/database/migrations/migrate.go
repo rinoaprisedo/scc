@@ -14,6 +14,7 @@ import (
 	"baseadmin/backend/modules/qris_cross_border"
 	"baseadmin/backend/modules/roles"
 	"baseadmin/backend/modules/settings"
+	"baseadmin/backend/modules/sliders"
 	"baseadmin/backend/modules/users"
 
 	"gorm.io/gorm"
@@ -38,6 +39,7 @@ func Run(db *gorm.DB) {
 		&qr_gate.QrGate{},
 		&qr_gate.QrGateScan{},
 		&qris_cross_border.QrisCrossBorder{},
+		&sliders.Slider{},
 	)
 	if err != nil {
 		log.Fatalf("migration failed: %v", err)

@@ -14,6 +14,7 @@ import QrGate from '../pages/qr_gate/QrGate'
 import QrisCrossBorder from '../pages/qris_cross_border/QrisCrossBorder'
 import Menus from '../pages/menus/Menus'
 import MenuSections from '../pages/menu_sections/MenuSections'
+import Sliders from '../pages/sliders/Sliders'
 import Roles from '../pages/roles/Roles'
 import RolePermissions from '../pages/roles/RolePermissions'
 import Settings from '../pages/settings/Settings'
@@ -110,6 +111,14 @@ function AppRouter() {
           element={
             <ProtectedRoute menuKey="menu-sections">
               <MenuSections />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sliders"
+          element={
+            <ProtectedRoute menuKey="sliders">
+              <Sliders />
             </ProtectedRoute>
           }
         />

@@ -8,6 +8,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, sessionAuth gin.HandlerFun
 	// history, no qr-gate:* admin permission required.
 	g.POST("/scan", sessionAuth, h.Scan)
 	g.GET("/my-scans", sessionAuth, h.MyScans)
+	g.GET("/leaderboard", sessionAuth, h.Leaderboard)
 
 	g.GET("", guard("qr-gate", "view"), h.List)
 	g.GET("/:uuid", guard("qr-gate", "view"), h.Get)

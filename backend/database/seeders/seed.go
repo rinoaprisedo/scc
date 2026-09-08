@@ -144,6 +144,7 @@ func seedMenus(db *gorm.DB) []uint64 {
 			Menus: []menuDef{
 				{Name: "Menus", Icon: "Menu", Path: "menus"},
 				{Name: "Menu Sections", Icon: "FolderTree", Path: "menu-sections"},
+				{Name: "Sliders", Icon: "GalleryHorizontal", Path: "sliders"},
 				{Name: "Settings", Icon: "Settings", Path: "settings"},
 				{Name: "Activity Logs", Icon: "History", Path: "activity-logs"},
 			},
@@ -204,6 +205,7 @@ func seedSettings(db *gorm.DB) {
 		"menu_scanner_qr_enabled":        settings.TypeBoolean,
 		"menu_history_scanner_enabled":   settings.TypeBoolean,
 		"menu_event_information_enabled": settings.TypeBoolean,
+		"menu_leaderboard_enabled":       settings.TypeBoolean,
 	}
 	values := map[string]string{
 		"app_name":                       "scc",
@@ -218,6 +220,9 @@ func seedSettings(db *gorm.DB) {
 		"menu_scanner_qr_enabled":        "true",
 		"menu_history_scanner_enabled":   "true",
 		"menu_event_information_enabled": "true",
+		// Off by default — the slider carousel stays the fallback content
+		// until an admin explicitly opts into showing the leaderboard.
+		"menu_leaderboard_enabled": "false",
 	}
 	for key, t := range defaults {
 		var s settings.Setting
