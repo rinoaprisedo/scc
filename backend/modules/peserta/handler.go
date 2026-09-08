@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"baseadmin/backend/modules/activity_logs"
+	"baseadmin/backend/modules/blazer_sizes"
 	"baseadmin/backend/modules/qr_gate"
 	"baseadmin/backend/modules/settings"
 	"baseadmin/backend/storage"
@@ -31,7 +32,7 @@ type Handler struct {
 
 func NewHandler(db *gorm.DB, s storage.StorageInterface, rdb *redis.Client) *Handler {
 	return &Handler{
-		Service:         NewService(NewRepository(db), s, rdb),
+		Service:         NewService(NewRepository(db), s, rdb, blazer_sizes.NewRepository(db)),
 		QrGateService:   qr_gate.NewService(qr_gate.NewRepository(db)),
 		SettingsService: settings.NewService(settings.NewRepository(db), rdb, s),
 	}
@@ -252,7 +253,7 @@ func (h *Handler) Update(c *gin.Context) {
 			utils.Error(c, 404, "peserta not found")
 			return
 		}
-		if errors.Is(err, ErrInvalidAttendanceStatus) {
+		if errors.Is(err, ErrInvalidAttendanceStatus) || errors.Is(err, ErrBlazerSizeInvalid) || errors.Is(err, ErrBlazerSizeOutOfStock) {
 			utils.Error(c, 400, err.Error())
 			return
 		}
@@ -423,7 +424,7 @@ func (h *Handler) UpdateMe(c *gin.Context) {
 			utils.Error(c, 404, "peserta not found")
 			return
 		}
-		if errors.Is(err, ErrPassportExpiryTooSoon) {
+		if errors.Is(err, ErrPassportExpiryTooSoon) || errors.Is(err, ErrBlazerSizeInvalid) || errors.Is(err, ErrBlazerSizeOutOfStock) {
 			utils.Error(c, 400, err.Error())
 			return
 		}

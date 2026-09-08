@@ -104,3 +104,69 @@ func (h *Handler) Upload(c *gin.Context) {
 	}
 	utils.Success(c, 200, "file uploaded", gin.H{"url": url})
 }
+
+// UploadImages godoc
+// @Summary		Add one or more images to a multi-image setting (event_information_file or about_malaysia_file)
+// @Tags			settings
+// @Security		SessionCookie
+// @Accept			multipart/form-data
+// @Param			target	formData	string	true	"event_information_file or about_malaysia_file"
+// @Param			files	formData	file	true	"One or more image files"
+// @Success		200		{object}	utils.Response
+// @Failure		400		{object}	utils.Response
+// @Router			/settings/upload-images [post]
+func (h *Handler) UploadImages(c *gin.Context) {
+	target := c.PostForm("target")
+
+	form, err := c.MultipartForm()
+	if err != nil {
+		utils.Error(c, 400, "invalid multipart form")
+		return
+	}
+	files := form.File["files"]
+	if len(files) == 0 {
+		utils.Error(c, 400, "at least one file is required")
+		return
+	}
+
+	paths, err := h.Service.UploadImages(target, files)
+	if err != nil {
+		utils.Error(c, 400, err.Error())
+		return
+	}
+
+	actorID := utils.CurrentUserID(c)
+	activity_logs.LogActivity(actorID, activity_logs.ActionUpdate, "settings", target, nil, gin.H{"images": paths}, c.ClientIP(), c.Request.UserAgent())
+	utils.Success(c, 200, "images uploaded", gin.H{"paths": paths})
+}
+
+type removeImageRequest struct {
+	Target string `json:"target" binding:"required"`
+	Path   string `json:"path" binding:"required"`
+}
+
+// RemoveImage godoc
+// @Summary		Remove one image from a multi-image setting (event_information_file or about_malaysia_file)
+// @Tags			settings
+// @Security		SessionCookie
+// @Param			body	body		removeImageRequest	true	"Target key + image path to remove"
+// @Success		200		{object}	utils.Response
+// @Failure		400		{object}	utils.Response
+// @Router			/settings/images [delete]
+func (h *Handler) RemoveImage(c *gin.Context) {
+	var req removeImageRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, 400, "invalid request payload")
+		return
+	}
+
+	paths, err := h.Service.RemoveImage(req.Target, req.Path)
+	if err != nil {
+		utils.Error(c, 400, err.Error())
+		return
+	}
+
+	actorID := utils.CurrentUserID(c)
+	activity_logs.LogActivity(actorID, activity_logs.ActionUpdate, "settings", req.Target, nil, gin.H{"images": paths}, c.ClientIP(), c.Request.UserAgent())
+	utils.Success(c, 200, "image removed", gin.H{"paths": paths})
+}

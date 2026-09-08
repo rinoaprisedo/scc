@@ -1,24 +1,117 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
+import { UploadCloud, X } from 'lucide-react'
 import Input from '../../components/ui/Input'
 import Button from '../../components/ui/Button'
 import Skeleton from '../../components/ui/Skeleton'
 import FileUpload from '../../components/ui/FileUpload'
 import { Menubar, MenubarLabel } from '../../components/ui/Menubar'
-import { getSettings, updateSettings, uploadSetting } from '../../api/settings'
+import { getSettings, updateSettings, uploadSetting, uploadSettingImages, removeSettingImage } from '../../api/settings'
 import { fileURL } from '../../utils/url'
+import { cn } from '../../utils/cn'
 import usePageActions from '../../hooks/usePageActions'
 import useSettingsStore from '../../store/settingsStore'
 
 const tabs = ['General', 'Appearance', 'Website Content', 'Website Menu', 'Registration', 'Maintenance']
 
-const CONTENT_ITEMS = [
+// agenda_file/dress_code_file stay single-file (image or PDF).
+const SINGLE_CONTENT_ITEMS = [
   { key: 'agenda_file', label: 'Agenda Acara' },
   { key: 'dress_code_file', label: 'Dress Code' },
+]
+
+// event_information_file/about_malaysia_file are multi-image — the website
+// renders them as a Carousel slider in the preview popup once more than one
+// image exists.
+const MULTI_CONTENT_ITEMS = [
   { key: 'event_information_file', label: 'Event Information' },
   { key: 'about_malaysia_file', label: 'About Malaysia' },
 ]
+
+// Mirrors backend settings.parseImagePaths — a value that isn't valid JSON
+// is a pre-multi-image legacy single path, not a parse failure.
+function parseImagePaths(raw) {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : [raw]
+  } catch {
+    return [raw]
+  }
+}
+
+function MultiImageUpload({ target, label, paths, uploading, onUploaded, onRemoved }) {
+  const inputRef = useRef(null)
+  const [isDragging, setIsDragging] = useState(false)
+
+  const handleFiles = (files) => {
+    const list = Array.from(files || [])
+    if (list.length > 0) onUploaded(list)
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs font-medium uppercase tracking-[.05em] text-text-secondary">{label}</p>
+
+      {paths.length > 0 && (
+        <div className="grid grid-cols-4 gap-2">
+          {paths.map((path) => (
+            <div
+              key={path}
+              className="group relative overflow-hidden rounded-md border border-surface-border bg-surface-card"
+            >
+              <img src={fileURL(path)} alt={label} className="h-20 w-full object-cover" />
+              <button
+                type="button"
+                onClick={() => onRemoved(path)}
+                className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                aria-label="Remove image"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => e.key === 'Enter' && inputRef.current?.click()}
+        onDragOver={(e) => {
+          e.preventDefault()
+          setIsDragging(true)
+        }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault()
+          setIsDragging(false)
+          handleFiles(e.dataTransfer.files)
+        }}
+        className={cn(
+          'flex cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed border-surface-border bg-white px-4 py-3 text-sm text-text-secondary transition-colors duration-150 hover:border-primary/60 hover:bg-primary/5',
+          isDragging && 'border-primary bg-primary/5',
+        )}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            handleFiles(e.target.files)
+            e.target.value = ''
+          }}
+        />
+        <UploadCloud className="h-4 w-4 shrink-0 text-primary" />
+        <span>{uploading ? 'Uploading...' : 'Click or drag to add image(s)'}</span>
+      </div>
+    </div>
+  )
+}
 
 // Mirrors the participant website's Dashboard MENU_ITEMS — toggling one off
 // makes the site show a "belum tersedia" popup instead of opening it.
@@ -94,6 +187,24 @@ function Settings() {
       queryClient.invalidateQueries({ queryKey: ['settings'] })
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Upload failed'),
+  })
+
+  const uploadImagesMutation = useMutation({
+    mutationFn: ({ target, files }) => uploadSettingImages(target, files),
+    onSuccess: () => {
+      toast.success('Images uploaded')
+      queryClient.invalidateQueries({ queryKey: ['settings'] })
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Upload failed'),
+  })
+
+  const removeImageMutation = useMutation({
+    mutationFn: ({ target, path }) => removeSettingImage(target, path),
+    onSuccess: () => {
+      toast.success('Image removed')
+      queryClient.invalidateQueries({ queryKey: ['settings'] })
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Remove failed'),
   })
 
   const handleMenuToggleChange = (key) => (e) => {
@@ -213,10 +324,11 @@ function Settings() {
         {tab === 'Website Content' && (
           <div className="max-w-md space-y-6">
             <p className="text-sm text-text-secondary">
-              Image or PDF shown in the participant website's Agenda Acara / Dress Code / Event Information / About
-              Malaysia popups.
+              Image or PDF shown in the participant website's Agenda Acara / Dress Code popups, and one or more
+              images for the Event Information / About Malaysia popups (rendered as a slider once more than one is
+              added).
             </p>
-            {CONTENT_ITEMS.map(({ key, label }) => {
+            {SINGLE_CONTENT_ITEMS.map(({ key, label }) => {
               const path = data?.data?.[key]
               const pdf = isPdf(path)
               return (
@@ -242,6 +354,17 @@ function Settings() {
                 </div>
               )
             })}
+            {MULTI_CONTENT_ITEMS.map(({ key, label }) => (
+              <MultiImageUpload
+                key={key}
+                target={key}
+                label={label}
+                paths={parseImagePaths(data?.data?.[key])}
+                uploading={uploadImagesMutation.isPending && uploadImagesMutation.variables?.target === key}
+                onUploaded={(files) => uploadImagesMutation.mutate({ target: key, files })}
+                onRemoved={(path) => removeImageMutation.mutate({ target: key, path })}
+              />
+            ))}
           </div>
         )}
 

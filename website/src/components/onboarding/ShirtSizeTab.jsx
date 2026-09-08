@@ -44,8 +44,8 @@ function ShirtSizeTab({ user, blazerSizes, formId, onSaved, onSubmittingChange }
         <Select label="Select Blazer Size" required error={errors.blazer_size?.message} {...register('blazer_size')}>
           <option value="">Select</option>
           {blazerSizes.map((b) => (
-            <option key={b.uuid} value={b.size} disabled={b.stock <= 0}>
-              {b.stock <= 0 ? `${b.size} - Stok Habis` : `${b.size} - Stock: sisa ${b.stock} pcs`}
+            <option key={b.uuid} value={b.size} disabled={b.remaining <= 0}>
+              {b.remaining <= 0 ? `${b.size} - Stok Habis` : `${b.size} - Stock: sisa ${b.remaining} pcs`}
             </option>
           ))}
         </Select>

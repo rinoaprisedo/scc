@@ -17,7 +17,6 @@ const DIETARY_OPTIONS = [
   'tidak makan seafood',
   'vegetarian',
 ]
-const SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL']
 const OTHER_CITY_VALUE = 'other'
 const DEFAULT_PASSWORD = 'scc2026'
 const MAX_KTP_FILE_SIZE = 10 * 1024 * 1024
@@ -60,7 +59,7 @@ function emptyValues() {
   }
 }
 
-function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [], bandara = [], loading }) {
+function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [], bandara = [], blazerSizes = [], loading }) {
   const {
     register,
     handleSubmit,
@@ -273,9 +272,9 @@ function PesertaFormModal({ open, onClose, onSubmit, initialData, kotaAsal = [],
 
           <Select label="Select Blazer Size" error={errors.blazer_size?.message} {...register('blazer_size')}>
             <option value="">Select</option>
-            {SIZE_OPTIONS.map((s) => (
-              <option key={s} value={s}>
-                {s}
+            {blazerSizes.map((b) => (
+              <option key={b.uuid} value={b.size} disabled={b.remaining <= 0}>
+                {b.remaining <= 0 ? `${b.size} - Stok Habis` : `${b.size} - Stock: sisa ${b.remaining} pcs`}
               </option>
             ))}
           </Select>

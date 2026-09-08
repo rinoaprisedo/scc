@@ -1,40 +1,53 @@
 import { X } from 'lucide-react'
 import { fileURL } from '../utils/url'
+import Carousel from './ui/Carousel'
 
 function isPdf(path) {
   return !!path && path.toLowerCase().endsWith('.pdf')
 }
 
+// event_information_file/about_malaysia_file store a JSON array of paths
+// (multi-image, rendered as a Carousel slider) — agenda_file/dress_code_file
+// still store a single path/PDF. A value that isn't valid JSON is a
+// pre-multi-image legacy single path, not a parse failure, mirroring the
+// backend's own settings.parseImagePaths.
+function parsePaths(raw) {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : [raw]
+  } catch {
+    return [raw]
+  }
+}
+
 function ContentPreviewModal({ title, path, onClose }) {
-  const url = fileURL(path)
-  const pdf = isPdf(path)
+  const paths = parsePaths(path)
+  const pdf = paths.length === 1 && isPdf(paths[0])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-dark/80 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="flex shrink-0 items-center justify-between border-b border-surface-border px-6 py-4">
-          <p className="text-base font-bold text-navy">{title}</p>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="text-text-secondary transition hover:text-text-primary"
-          >
-            <X size={20} />
-          </button>
-        </div>
+      <div className="relative flex h-[90vh] w-[90vw] items-center justify-center">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-0 top-0 z-10 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+        >
+          <X size={20} />
+        </button>
 
-        <div className="min-h-0 flex-1 overflow-auto bg-surface-bg">
-          {!url ? (
-            <div className="flex h-64 items-center justify-center px-6 text-center text-sm text-text-secondary">
-              Konten belum tersedia. Silakan cek kembali nanti.
-            </div>
-          ) : pdf ? (
-            <iframe src={url} title={title} className="h-[75vh] w-full" />
-          ) : (
-            <img src={url} alt={title} className="mx-auto max-h-[75vh] w-auto object-contain" />
-          )}
-        </div>
+        {paths.length === 0 ? (
+          <p className="px-6 text-center text-sm text-white/80">Konten belum tersedia. Silakan cek kembali nanti.</p>
+        ) : pdf ? (
+          <iframe src={fileURL(paths[0])} title={title} className="h-full w-full rounded-lg" />
+        ) : (
+          <Carousel
+            images={paths.map((p) => ({ src: fileURL(p), alt: title }))}
+            className="h-full w-full"
+            imgClassName="h-full w-full object-contain"
+          />
+        )}
       </div>
     </div>
   )

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"baseadmin/backend/modules/blazer_sizes"
 	"baseadmin/backend/modules/users"
 	"baseadmin/backend/session"
 	"baseadmin/backend/storage"
@@ -24,6 +25,8 @@ var (
 	ErrDuplicateEntry          = errors.New("failed to create peserta (email or NIK may already be in use)")
 	ErrPassportExpiryTooSoon   = errors.New("masa berlaku paspor minimal 6 bulan setelah 10 Oktober 2026 (hingga 10 April 2027)")
 	ErrInvalidAttendanceStatus = errors.New("invalid attendance status")
+	ErrBlazerSizeInvalid       = errors.New("ukuran blazer tidak ditemukan")
+	ErrBlazerSizeOutOfStock    = errors.New("stok ukuran blazer sudah habis")
 )
 
 // minPassportExpiry is the event date (2026-10-10) plus the standard
@@ -128,13 +131,48 @@ const placeholderEmailDomain = "@peserta.local"
 // forcing the Peserta role, resolving origin-city/airport relations.
 // Repository stays a thin data-access layer, matching the users module.
 type Service struct {
-	repo    *Repository
-	storage storage.StorageInterface
-	redis   *redis.Client
+	repo        *Repository
+	storage     storage.StorageInterface
+	redis       *redis.Client
+	blazerSizes *blazer_sizes.Repository
 }
 
-func NewService(repo *Repository, s storage.StorageInterface, rdb *redis.Client) *Service {
-	return &Service{repo: repo, storage: s, redis: rdb}
+func NewService(repo *Repository, s storage.StorageInterface, rdb *redis.Client, blazerSizes *blazer_sizes.Repository) *Service {
+	return &Service{repo: repo, storage: s, redis: rdb, blazerSizes: blazerSizes}
+}
+
+// checkBlazerSizeStock enforces server-side the same stock-availability
+// rule the website's size picker only enforces visually (disabling
+// out-of-stock <option>s) — admin CRUD must not be able to bypass that by
+// selecting/typing an out-of-stock size directly. A size left unchanged is
+// always allowed through, even if its stock has since run out, so editing an
+// unrelated field on an already-assigned peserta is never blocked by their
+// own existing size.
+//
+// blazer_sizes.Stock is an admin-set initial quota, not a live remaining
+// counter — it's never decremented anywhere in the app. Remaining
+// availability is always Stock minus how many peserta already have that
+// size (see peserta.Repository.CountByBlazerSize and
+// dashboard.Repository.BlazerSizeStockRows, which compute it the same way).
+func (s *Service) checkBlazerSizeStock(newSize string, currentSize *string) error {
+	if newSize == "" {
+		return nil
+	}
+	if currentSize != nil && *currentSize == newSize {
+		return nil
+	}
+	bs, err := s.blazerSizes.FindBySize(newSize)
+	if err != nil {
+		return ErrBlazerSizeInvalid
+	}
+	assigned, err := s.repo.CountByBlazerSize(newSize)
+	if err != nil {
+		return err
+	}
+	if int64(bs.Stock)-assigned <= 0 {
+		return ErrBlazerSizeOutOfStock
+	}
+	return nil
 }
 
 // invalidateSessions mirrors users.Service.invalidateSessions — kept for
@@ -222,6 +260,10 @@ type CreateInput struct {
 }
 
 func (s *Service) Create(in CreateInput) (*users.User, error) {
+	if err := s.checkBlazerSizeStock(in.Profile.BlazerSize, nil); err != nil {
+		return nil, err
+	}
+
 	// Lowercased before hashing so PesertaLogin's case-insensitive check
 	// (website login requirement — NIK/password login is not treated as
 	// case-sensitive there) has a matching hash to compare against.
@@ -319,6 +361,10 @@ func (s *Service) Update(uuidStr string, in UpdateInput) (before *users.User, af
 	}
 	old := *user
 	statusChanged := in.Status != "" && users.UserStatus(in.Status) != old.Status
+
+	if err := s.checkBlazerSizeStock(in.Profile.BlazerSize, old.BlazerSize); err != nil {
+		return nil, nil, err
+	}
 
 	if in.Name != "" {
 		user.Name = in.Name
@@ -501,6 +547,9 @@ func (s *Service) UpdateProfile(userID uint64, in SelfProfileInput) (*users.User
 		user.PassportExpiry = expiry
 	}
 	if in.BlazerSize != nil {
+		if err := s.checkBlazerSizeStock(*in.BlazerSize, user.BlazerSize); err != nil {
+			return nil, err
+		}
 		user.BlazerSize = ptrOrNil(*in.BlazerSize)
 	}
 	recomputeAttendanceStatus(user)

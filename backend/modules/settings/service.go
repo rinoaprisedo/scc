@@ -2,6 +2,7 @@ package settings
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"mime/multipart"
 
@@ -10,7 +11,11 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-var ErrInvalidUploadTarget = errors.New("target must be app_logo or app_favicon")
+var (
+	ErrInvalidUploadTarget      = errors.New("target must be app_logo or app_favicon")
+	ErrInvalidMultiImageTarget  = errors.New("target must be event_information_file or about_malaysia_file")
+	ErrMultiImageSettingMissing = errors.New("setting not found")
+)
 
 // Service holds business rules for the settings module: key/value upsert and
 // invalidating the maintenance-mode cache when it changes.
@@ -100,18 +105,17 @@ func (s *Service) BulkUpdate(payload map[string]string) error {
 	return nil
 }
 
-// agenda_file/dress_code_file/event_information_file/about_malaysia_file back
-// the participant website's Agenda Acara/Dress Code/Event Information/About
-// Malaysia preview popups — an image or PDF, same generic key/value +
-// file-upload mechanism as app_logo, just with a different downstream
-// consumer.
+// agenda_file/dress_code_file back the participant website's Agenda
+// Acara/Dress Code preview popups — a single image or PDF, same generic
+// key/value + file-upload mechanism as app_logo. event_information_file and
+// about_malaysia_file used to work the same way but moved to the multi-image
+// mechanism below (UploadImages/RemoveImage) — they're deliberately absent
+// here so the single-file endpoint can't clobber their JSON array Value.
 var uploadTargets = map[string]bool{
-	"app_logo":               true,
-	"app_favicon":            true,
-	"agenda_file":            true,
-	"dress_code_file":        true,
-	"event_information_file": true,
-	"about_malaysia_file":    true,
+	"app_logo":        true,
+	"app_favicon":     true,
+	"agenda_file":     true,
+	"dress_code_file": true,
 }
 
 func (s *Service) Upload(target string, file multipart.File, header *multipart.FileHeader) (string, error) {
@@ -127,4 +131,110 @@ func (s *Service) Upload(target string, file multipart.File, header *multipart.F
 		return "", err
 	}
 	return s.storage.GetURL(path), nil
+}
+
+// multiImageTargets are settings whose Value holds a JSON array of storage
+// paths instead of a single path — event_information_file/about_malaysia_file
+// back the participant website's Event Information/About Malaysia preview
+// popups, which render as a Carousel slider once more than one image exists.
+var multiImageTargets = map[string]bool{
+	"event_information_file": true,
+	"about_malaysia_file":    true,
+}
+
+// parseImagePaths decodes a multi-image setting's Value. Empty decodes to no
+// images. A value that isn't valid JSON is treated as a single legacy path —
+// both keys used to be plain single-file settings (like agenda_file still
+// is) before multi-image support existed, so an admin's earlier upload keeps
+// showing as "one image" instead of silently disappearing.
+func parseImagePaths(raw string) []string {
+	if raw == "" {
+		return []string{}
+	}
+	var paths []string
+	if err := json.Unmarshal([]byte(raw), &paths); err != nil {
+		return []string{raw}
+	}
+	return paths
+}
+
+// Images returns the current list of storage paths for a multi-image
+// setting — an absent row (never uploaded to) reads as no images rather
+// than an error, matching how a never-set single-file setting reads as "".
+func (s *Service) Images(target string) ([]string, error) {
+	if !multiImageTargets[target] {
+		return nil, ErrInvalidMultiImageTarget
+	}
+	setting, err := s.repo.FindByKey(target)
+	if err != nil {
+		return []string{}, nil
+	}
+	return parseImagePaths(setting.Value), nil
+}
+
+// UploadImages appends every file to the target's existing image list (read-
+// modify-write on the single settings row) rather than overwriting it, so
+// admins build a gallery one batch at a time instead of replacing it.
+func (s *Service) UploadImages(target string, files []*multipart.FileHeader) ([]string, error) {
+	if !multiImageTargets[target] {
+		return nil, ErrInvalidMultiImageTarget
+	}
+
+	paths := []string{}
+	if setting, err := s.repo.FindByKey(target); err == nil {
+		paths = parseImagePaths(setting.Value)
+	}
+
+	for _, header := range files {
+		file, err := header.Open()
+		if err != nil {
+			return nil, err
+		}
+		path, err := s.storage.Upload(file, header, "settings")
+		file.Close()
+		if err != nil {
+			return nil, err
+		}
+		paths = append(paths, path)
+	}
+
+	encoded, err := json.Marshal(paths)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.Upsert(target, string(encoded), TypeFile); err != nil {
+		return nil, err
+	}
+	return paths, nil
+}
+
+// RemoveImage drops one path from the target's image list. The underlying
+// file is left in storage, not deleted — matching every other upload path in
+// this codebase (see storage.StorageInterface), which never deletes a
+// replaced/removed file either.
+func (s *Service) RemoveImage(target, path string) ([]string, error) {
+	if !multiImageTargets[target] {
+		return nil, ErrInvalidMultiImageTarget
+	}
+	setting, err := s.repo.FindByKey(target)
+	if err != nil {
+		return nil, ErrMultiImageSettingMissing
+	}
+
+	existing := parseImagePaths(setting.Value)
+	kept := make([]string, 0, len(existing))
+	for _, p := range existing {
+		if p != path {
+			kept = append(kept, p)
+		}
+	}
+
+	encoded, err := json.Marshal(kept)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.Upsert(target, string(encoded), TypeFile); err != nil {
+		return nil, err
+	}
+	return kept, nil
 }

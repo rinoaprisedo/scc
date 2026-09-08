@@ -4,6 +4,8 @@ import (
 	"errors"
 
 	"baseadmin/backend/utils"
+
+	"github.com/google/uuid"
 )
 
 var ErrNotFound = errors.New("blazer size not found")
@@ -21,8 +23,33 @@ func (s *Service) List(p utils.Pagination) ([]BlazerSize, int64, error) {
 	return s.repo.List(p)
 }
 
-func (s *Service) Options() ([]BlazerSize, error) {
-	return s.repo.All()
+// SizeOption is what /blazer-sizes/options returns to dropdowns (website
+// onboarding + admin peserta form) — Remaining is the computed Stock minus
+// Assigned, not the raw Stock quota, so a size disappears from availability
+// the moment enough peserta have picked it, not only when an admin manually
+// zeroes its Stock.
+type SizeOption struct {
+	UUID      uuid.UUID `json:"uuid"`
+	Size      string    `json:"size"`
+	Stock     int       `json:"stock"`
+	Remaining int64     `json:"remaining"`
+}
+
+func (s *Service) Options() ([]SizeOption, error) {
+	rows, err := s.repo.OptionsWithRemaining()
+	if err != nil {
+		return nil, err
+	}
+	options := make([]SizeOption, 0, len(rows))
+	for _, row := range rows {
+		options = append(options, SizeOption{
+			UUID:      row.UUID,
+			Size:      row.Size,
+			Stock:     row.Stock,
+			Remaining: int64(row.Stock) - row.Assigned,
+		})
+	}
+	return options, nil
 }
 
 func (s *Service) Get(uuidStr string) (*BlazerSize, error) {

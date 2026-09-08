@@ -42,13 +42,25 @@ type NamedCount struct {
 	Count int64  `json:"count"`
 }
 
+// BlazerSizeStock is one blazer size's label, its admin-set initial quota
+// (Stock), how many peserta already have it assigned, and the computed
+// Remaining (Stock - Assigned) — Stock alone is never a live remaining
+// count, see BlazerSizeStockRow's comment in repository.go.
+type BlazerSizeStock struct {
+	Size      string `json:"size"`
+	Stock     int    `json:"stock"`
+	Assigned  int64  `json:"assigned"`
+	Remaining int64  `json:"remaining"`
+}
+
 type Summary struct {
-	TotalPeserta int64        `json:"total_peserta"`
-	LoggedIn     int64        `json:"logged_in"`
-	NotLoggedIn  int64        `json:"not_logged_in"`
-	Attendance   []NamedCount `json:"attendance"`
-	Dietary      []NamedCount `json:"dietary"`
-	QrGates      []NamedCount `json:"qr_gates"`
+	TotalPeserta int64             `json:"total_peserta"`
+	LoggedIn     int64             `json:"logged_in"`
+	NotLoggedIn  int64             `json:"not_logged_in"`
+	Attendance   []NamedCount      `json:"attendance"`
+	Dietary      []NamedCount      `json:"dietary"`
+	QrGates      []NamedCount      `json:"qr_gates"`
+	BlazerSizes  []BlazerSizeStock `json:"blazer_sizes"`
 }
 
 func (s *Service) Summary() (*Summary, error) {
@@ -104,6 +116,20 @@ func (s *Service) Summary() (*Summary, error) {
 		qrGates = append(qrGates, NamedCount{Key: row.GateName, Label: row.GateName, Count: row.Count})
 	}
 
+	blazerRows, err := s.repo.BlazerSizeStockRows()
+	if err != nil {
+		return nil, err
+	}
+	blazerSizes := make([]BlazerSizeStock, 0, len(blazerRows))
+	for _, row := range blazerRows {
+		blazerSizes = append(blazerSizes, BlazerSizeStock{
+			Size:      row.Size,
+			Stock:     row.Stock,
+			Assigned:  row.Assigned,
+			Remaining: int64(row.Stock) - row.Assigned,
+		})
+	}
+
 	return &Summary{
 		TotalPeserta: total,
 		LoggedIn:     loggedIn,
@@ -111,5 +137,6 @@ func (s *Service) Summary() (*Summary, error) {
 		Attendance:   attendance,
 		Dietary:      dietary,
 		QrGates:      qrGates,
+		BlazerSizes:  blazerSizes,
 	}, nil
 }

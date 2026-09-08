@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Users, UserCheck, UserX, QrCode } from 'lucide-react'
+import { Users, UserCheck, UserX, QrCode, Shirt } from 'lucide-react'
 import { Menubar, MenubarLabel } from '../../components/ui/Menubar'
 import EmptyState from '../../components/ui/EmptyState'
 import Skeleton from '../../components/ui/Skeleton'
@@ -60,6 +60,35 @@ function BarRow({ label, count, total, color }) {
   )
 }
 
+// StockRow mirrors BarRow's layout but the bar reflects a size's remaining
+// stock relative to the size with the most remaining (not a share of total
+// peserta, which BarRow assumes). initialStock (the admin-set quota) shows
+// next to the size label for context, while the bar/value on the right is
+// always the computed remaining (initialStock minus how many peserta already
+// picked it) — flagged with the same "Habis" wording and text-danger color
+// the Blazer Sizes admin list page uses once remaining hits zero.
+function StockRow({ label, initialStock, remaining, maxRemaining, color }) {
+  const outOfStock = remaining <= 0
+  const pct = maxRemaining > 0 ? Math.round((Math.max(remaining, 0) / maxRemaining) * 100) : 0
+  return (
+    <div title={outOfStock ? `${label}: stok habis` : `${label}: sisa ${formatNumber(remaining)} pcs`}>
+      <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
+        <span className="flex items-center gap-2 text-text-secondary">
+          <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+          {label}
+          <span className="text-xs font-normal text-text-tertiary">(stok awal: {formatNumber(initialStock)})</span>
+        </span>
+        <span className={`shrink-0 font-medium ${outOfStock ? 'text-danger' : 'text-text-primary'}`}>
+          {outOfStock ? 'Habis' : `${formatNumber(remaining)} pcs`}
+        </span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-surface-hover">
+        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
+      </div>
+    </div>
+  )
+}
+
 function ChartCard({ title, children }) {
   return (
     <div className="rounded-lg border border-surface-border bg-surface-card p-5 shadow-card">
@@ -99,7 +128,7 @@ function Dashboard() {
           ))}
         </div>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {Array.from({ length: 3 }).map((_, i) => (
+          {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-64 rounded-lg" />
           ))}
         </div>
@@ -108,6 +137,8 @@ function Dashboard() {
   }
 
   const loginPct = total > 0 ? Math.round(((summary.logged_in ?? 0) / total) * 100) : 0
+  const blazerSizes = summary.blazer_sizes ?? []
+  const maxRemainingStock = Math.max(1, ...blazerSizes.map((b) => Math.max(b.remaining, 0)))
 
   return (
     <div className="space-y-6">
@@ -153,6 +184,25 @@ function Dashboard() {
               <BarRow key={row.key} label={row.label} count={row.count} total={total} color={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
             ))}
           </div>
+        </ChartCard>
+
+        <ChartCard title="Stok Blazer per Ukuran">
+          {blazerSizes.length === 0 ? (
+            <EmptyState icon={Shirt} title="Belum ada data ukuran" message="Tambahkan ukuran di menu Blazer Sizes untuk mulai melacak stok." />
+          ) : (
+            <div className="space-y-4">
+              {blazerSizes.map((row, i) => (
+                <StockRow
+                  key={row.size}
+                  label={row.size}
+                  initialStock={row.stock}
+                  remaining={row.remaining}
+                  maxRemaining={maxRemainingStock}
+                  color={CATEGORY_COLORS[i % CATEGORY_COLORS.length]}
+                />
+              ))}
+            </div>
+          )}
         </ChartCard>
 
         <ChartCard title="Scan per QR Gate">

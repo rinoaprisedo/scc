@@ -28,6 +28,7 @@ import {
 } from '../../api/peserta'
 import { getKotaAsal } from '../../api/kotaAsal'
 import { getBandara } from '../../api/bandara'
+import { getBlazerSizeOptions } from '../../api/blazerSizes'
 import usePermission from '../../hooks/usePermission'
 import usePageActions from '../../hooks/usePageActions'
 import { attendanceLabel } from '../../utils/attendance'
@@ -60,6 +61,7 @@ function Peserta() {
 
   const { data: kotaAsalData } = useQuery({ queryKey: ['kota-asal', 'all'], queryFn: () => getKotaAsal({ limit: 100 }) })
   const { data: bandaraData } = useQuery({ queryKey: ['bandara', 'all'], queryFn: () => getBandara({ limit: 100 }) })
+  const { data: blazerSizesData } = useQuery({ queryKey: ['blazer-sizes', 'options'], queryFn: getBlazerSizeOptions })
 
   const saveMutation = useMutation({
     mutationFn: async ({ payload, ktpFile, passportFile }) => {
@@ -386,6 +388,7 @@ function Peserta() {
         initialData={editing}
         kotaAsal={kotaAsalData?.data || []}
         bandara={bandaraData?.data || []}
+        blazerSizes={blazerSizesData?.data || []}
         loading={saveMutation.isPending}
       />
 

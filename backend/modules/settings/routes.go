@@ -8,4 +8,6 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, guard func(menuPath, actio
 	g.GET("", guard("settings", "view"), h.List)
 	g.PUT("", guard("settings", "edit"), h.BulkUpdate)
 	g.POST("/upload", guard("settings", "edit"), uploadLimiter, h.Upload)
+	g.POST("/upload-images", guard("settings", "edit"), uploadLimiter, h.UploadImages)
+	g.DELETE("/images", guard("settings", "edit"), h.RemoveImage)
 }

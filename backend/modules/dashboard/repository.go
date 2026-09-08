@@ -81,3 +81,31 @@ func (r *Repository) GateScanCounts() ([]GateCount, error) {
 		Scan(&rows).Error
 	return rows, err
 }
+
+// BlazerSizeStockRow is one blazer_sizes row's label, its admin-set initial
+// quota (Stock), and how many peserta currently have that size assigned.
+// Stock is never auto-decremented anywhere in the app (see
+// peserta.Service.checkBlazerSizeStock) — it's the initial quota an admin
+// typed in, so "remaining" always has to be computed as Stock minus Assigned
+// rather than read off a live counter column.
+type BlazerSizeStockRow struct {
+	Size     string
+	Stock    int
+	Assigned int64
+}
+
+// BlazerSizeStockRows lists every active blazer size in the same admin-controlled
+// display order the peserta form's dropdown uses, so the dashboard reads
+// top-to-bottom in the order admins expect. The left join counts only
+// non-deleted Peserta-role users, matching peserta.Repository's own scope.
+func (r *Repository) BlazerSizeStockRows() ([]BlazerSizeStockRow, error) {
+	var rows []BlazerSizeStockRow
+	err := r.DB.Table("blazer_sizes AS bs").
+		Select(`bs.size AS size, bs.stock AS stock, COUNT(u.id) AS assigned`).
+		Joins(`LEFT JOIN users u ON u.blazer_size = bs.size AND u.deleted_at IS NULL AND u.role_id = (SELECT id FROM roles WHERE name = ?)`, pesertaRoleName).
+		Where("bs.deleted_at IS NULL").
+		Group(`bs.id, bs.size, bs.stock, bs."order"`).
+		Order(`bs."order" ASC, bs.id ASC`).
+		Scan(&rows).Error
+	return rows, err
+}

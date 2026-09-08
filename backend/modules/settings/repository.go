@@ -17,6 +17,17 @@ func (r *Repository) List() ([]Setting, error) {
 	return list, err
 }
 
+// FindByKey backs the multi-image endpoints (UploadImages/RemoveImage),
+// which need to read-modify-write a single row's Value rather than upsert
+// blind, unlike every other write in this module.
+func (r *Repository) FindByKey(key string) (*Setting, error) {
+	var setting Setting
+	if err := r.DB.Where("key = ?", key).First(&setting).Error; err != nil {
+		return nil, err
+	}
+	return &setting, nil
+}
+
 func (r *Repository) Upsert(key, value string, settingType SettingType) error {
 	var setting Setting
 	result := r.DB.Where("key = ?", key).First(&setting)

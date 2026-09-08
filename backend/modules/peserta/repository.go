@@ -33,6 +33,16 @@ func (r *Repository) scope() *gorm.DB {
 		Where("roles.name = ?", pesertaRoleName)
 }
 
+// CountByBlazerSize counts how many peserta currently have the given blazer
+// size assigned. blazer_sizes.Stock is an admin-set initial quota, not a
+// live remaining counter (see peserta.Service.checkBlazerSizeStock), so
+// availability always has to be computed as Stock minus this count.
+func (r *Repository) CountByBlazerSize(size string) (int64, error) {
+	var count int64
+	err := r.scope().Where("users.blazer_size = ?", size).Count(&count).Error
+	return count, err
+}
+
 // UserWithPoints is what List returns — a peserta plus their total QR gate
 // points, summed from qr_gate_scans. Referenced by table name rather than
 // importing the qr_gate package, to avoid a cross-module Go dependency for
