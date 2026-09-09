@@ -198,6 +198,23 @@ func (s *Service) OpenKtpFile(path string) (io.ReadCloser, error) {
 	return s.storage.Open(path)
 }
 
+// OpenPassportFile mirrors OpenKtpFile for the passport ZIP export, reading
+// by users.User.PassportFile's stored relative path.
+func (s *Service) OpenPassportFile(path string) (io.ReadCloser, error) {
+	return s.storage.Open(path)
+}
+
+// FileURL resolves a stored relative path (users.User.KtpFile/PassportFile)
+// into the full URL the storage backend serves it from — used by the
+// CSV/Excel export so those columns hold a directly-openable link rather
+// than the bare relative path. Empty when nothing was uploaded.
+func (s *Service) FileURL(path *string) string {
+	if path == nil || *path == "" {
+		return ""
+	}
+	return s.storage.GetURL(*path)
+}
+
 func (s *Service) Get(uuidStr string) (*users.User, error) {
 	user, err := s.repo.FindByUUID(uuidStr)
 	if err != nil {

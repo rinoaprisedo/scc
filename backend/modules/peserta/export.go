@@ -18,16 +18,17 @@ import (
 )
 
 // exportColumns reuses importColumnDefs' headers (import.go) so an exported
-// file can be edited and re-imported as-is — plus one export-only column
-// that isn't part of the import shape at all ("Kehadiran"). No "Status"
-// column: every peserta is active by default and status isn't tracked as
-// export-worthy here. Order must match exportRow's return order exactly.
+// file can be edited and re-imported as-is — plus export-only columns that
+// aren't part of the import shape at all ("Kehadiran", the KTP/passport
+// image URLs). No "Status" column: every peserta is active by default and
+// status isn't tracked as export-worthy here. Order must match exportRow's
+// return order exactly.
 var exportColumns = func() []string {
-	cols := make([]string, 0, len(importColumnDefs)+1)
+	cols := make([]string, 0, len(importColumnDefs)+3)
 	for _, c := range importColumnDefs {
 		cols = append(cols, c.Header)
 	}
-	return append(cols, "Kehadiran")
+	return append(cols, "Kehadiran", "Foto KTP", "Foto Paspor")
 }()
 
 var attendanceStatusLabels = map[string]string{
@@ -61,7 +62,7 @@ func dateVal(t *time.Time) string {
 }
 
 // exportRow's field order must match exportColumns exactly.
-func exportRow(u users.User) []string {
+func exportRow(s *Service, u users.User) []string {
 	originCity := strVal(u.OriginCityOther)
 	if u.OriginCity != nil {
 		originCity = u.OriginCity.Name
@@ -93,6 +94,8 @@ func exportRow(u users.User) []string {
 		strVal(u.NomorMeja),
 		strVal(u.Description),
 		attendanceStatusLabel(u.AttendanceStatus),
+		s.FileURL(u.KtpFile),
+		s.FileURL(u.PassportFile),
 	}
 }
 
@@ -118,7 +121,7 @@ func (h *Handler) ExportCSV(c *gin.Context) {
 	w := csv.NewWriter(c.Writer)
 	_ = w.Write(exportColumns)
 	for _, u := range list {
-		_ = w.Write(exportRow(u))
+		_ = w.Write(exportRow(h.Service, u))
 	}
 	w.Flush()
 }
@@ -148,7 +151,7 @@ func (h *Handler) ExportExcel(c *gin.Context) {
 		f.SetCellValue(sheet, cell, col)
 	}
 	for r, u := range list {
-		row := exportRow(u)
+		row := exportRow(h.Service, u)
 		for i, v := range row {
 			cell, _ := excelize.CoordinatesToCellName(i+1, r+2)
 			f.SetCellValue(sheet, cell, v)
@@ -186,6 +189,78 @@ func ktpZipEntryName(u users.User) string {
 	nik := strVal(u.KtpNumber)
 	ext := filepath.Ext(*u.KtpFile)
 	return ktpZipInvalidChars.Replace(fmt.Sprintf("%s - %s%s", name, nik, ext))
+}
+
+// passportZipEntryName mirrors ktpZipEntryName exactly, still keyed off the
+// NIK (not the passport number) so filenames stay consistent between the two
+// ZIP exports — only the file extension differs, taken from PassportFile.
+func passportZipEntryName(u users.User) string {
+	parts := make([]string, 0, 3)
+	for _, p := range []*string{u.FirstName, u.MiddleName, u.LastName} {
+		if p != nil && strings.TrimSpace(*p) != "" {
+			parts = append(parts, strings.TrimSpace(*p))
+		}
+	}
+	name := strings.Join(parts, " ")
+	if name == "" {
+		name = u.Name
+	}
+	nik := strVal(u.KtpNumber)
+	ext := filepath.Ext(*u.PassportFile)
+	return ktpZipInvalidChars.Replace(fmt.Sprintf("%s - %s%s", name, nik, ext))
+}
+
+// ExportPassportZip godoc
+// @Summary		Export every peserta's uploaded passport file as one ZIP
+// @Tags			peserta
+// @Security		SessionCookie
+// @Param			search	query	string	false	"Search by name/email/phone/KTP/passport"
+// @Produce		application/zip
+// @Success		200
+// @Router			/peserta/export/passport-zip [get]
+func (h *Handler) ExportPassportZip(c *gin.Context) {
+	list, err := h.Service.ListAll(c.Query("search"))
+	if err != nil {
+		utils.Error(c, 500, "failed to export peserta")
+		return
+	}
+
+	filename := fmt.Sprintf("peserta_passport_%s.zip", time.Now().Format("20060102_150405"))
+	c.Header("Content-Disposition", "attachment; filename="+filename)
+	c.Header("Content-Type", "application/zip")
+
+	zw := zip.NewWriter(c.Writer)
+	defer zw.Close()
+
+	// NIK is unique per active peserta (idx_users_ktp_number_active), so the
+	// generated entry name is unique too — dedupe anyway so a data hiccup
+	// (a missing NIK on two rows, both falling back to "") produces distinct
+	// files inside the archive instead of one silently overwriting another.
+	usedNames := map[string]int{}
+	for _, u := range list {
+		if u.PassportFile == nil || *u.PassportFile == "" {
+			continue
+		}
+		rc, err := h.Service.OpenPassportFile(*u.PassportFile)
+		if err != nil {
+			continue // file missing on disk — skip rather than fail the whole export
+		}
+
+		baseName := passportZipEntryName(u)
+		entryName := baseName
+		if n := usedNames[baseName]; n > 0 {
+			ext := filepath.Ext(baseName)
+			base := strings.TrimSuffix(baseName, ext)
+			entryName = fmt.Sprintf("%s (%d)%s", base, n, ext)
+		}
+		usedNames[baseName]++
+
+		w, err := zw.Create(entryName)
+		if err == nil {
+			_, _ = io.Copy(w, rc)
+		}
+		rc.Close()
+	}
 }
 
 // ExportKtpZip godoc

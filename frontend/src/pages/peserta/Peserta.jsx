@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Plus, Pencil, Trash2, Eye, Trophy, RotateCcw, MoreHorizontal, FileSpreadsheet, FileText, FileUp, FileDown, FileArchive } from 'lucide-react'
@@ -7,6 +7,7 @@ import Table from '../../components/ui/Table'
 import Badge from '../../components/ui/Badge'
 import { Menubar, MenubarAction, MenubarMenu, MenubarItem, MenubarLabel, MenubarSeparator } from '../../components/ui/Menubar'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import DownloadProgressModal from '../../components/ui/DownloadProgressModal'
 import PesertaFormModal from './PesertaFormModal'
 import PesertaDetailModal from './PesertaDetailModal'
 import PesertaPointHistoryModal from './PesertaPointHistoryModal'
@@ -22,6 +23,7 @@ import {
   exportPesertaCsv,
   exportPesertaExcel,
   exportPesertaKtpZip,
+  exportPesertaPassportZip,
   downloadPesertaImportTemplate,
   validatePesertaImport,
   importPesertaExcel,
@@ -53,6 +55,30 @@ function Peserta() {
   const [importResult, setImportResult] = useState(null)
   const [importFile, setImportFile] = useState(null)
   const fileInputRef = useRef(null)
+  const [zipProgress, setZipProgress] = useState(null) // { label, loaded, rate } | null
+
+  const exportZip = useCallback(
+    async (label, exportFn, successMessage) => {
+      setZipProgress({ label, loaded: 0, rate: 0 })
+      try {
+        await exportFn({ search }, (evt) => setZipProgress({ label, loaded: evt.loaded, rate: evt.rate || 0 }))
+        toast.success(successMessage)
+      } catch {
+        toast.error('Export failed')
+      } finally {
+        setZipProgress(null)
+      }
+    },
+    [search],
+  )
+  const handleExportKtpZip = useCallback(
+    () => exportZip('Menyiapkan & mengunduh ZIP KTP...', exportPesertaKtpZip, 'KTP ZIP downloaded'),
+    [exportZip],
+  )
+  const handleExportPassportZip = useCallback(
+    () => exportZip('Menyiapkan & mengunduh ZIP Paspor...', exportPesertaPassportZip, 'Passport ZIP downloaded'),
+    [exportZip],
+  )
 
   const { data, isLoading } = useQuery({
     queryKey: ['peserta', { page, limit, search, sortBy, sortDir }],
@@ -298,17 +324,8 @@ function Peserta() {
                 })
               }
             />
-            <MenubarItem
-              label="Export KTP (ZIP)"
-              icon={FileArchive}
-              onClick={() =>
-                toast.promise(exportPesertaKtpZip({ search }), {
-                  loading: 'Exporting...',
-                  success: 'KTP ZIP downloaded',
-                  error: 'Export failed',
-                })
-              }
-            />
+            <MenubarItem label="Export KTP (ZIP)" icon={FileArchive} onClick={handleExportKtpZip} />
+            <MenubarItem label="Export Paspor (ZIP)" icon={FileArchive} onClick={handleExportPassportZip} />
             {canCreate('peserta') && (
               <>
                 <MenubarSeparator />
@@ -329,7 +346,7 @@ function Peserta() {
           </MenubarMenu>
         </Menubar>
       ),
-      [canCreate, search],
+      [canCreate, search, handleExportKtpZip, handleExportPassportZip],
     ),
   )
 
@@ -366,6 +383,13 @@ function Peserta() {
           setLimit(l)
           setPage(1)
         }}
+      />
+
+      <DownloadProgressModal
+        open={!!zipProgress}
+        title={zipProgress?.label}
+        loaded={zipProgress?.loaded}
+        rate={zipProgress?.rate}
       />
 
       <PesertaDetailModal open={!!viewing} onClose={() => setViewing(null)} peserta={viewing} />

@@ -32,8 +32,14 @@ export const exportPesertaCsv = (params) =>
   client.get('/peserta/export/csv', { params, responseType: 'blob' }).then((r) => downloadFile(r.data, 'peserta.csv'))
 export const exportPesertaExcel = (params) =>
   client.get('/peserta/export/excel', { params, responseType: 'blob' }).then((r) => downloadFile(r.data, 'peserta.xlsx'))
-export const exportPesertaKtpZip = (params) =>
-  client.get('/peserta/export/ktp-zip', { params, responseType: 'blob' }).then((r) => downloadFile(r.data, 'peserta_ktp.zip'))
+export const exportPesertaKtpZip = (params, onProgress) =>
+  client
+    .get('/peserta/export/ktp-zip', { params, responseType: 'blob', onDownloadProgress: onProgress })
+    .then((r) => downloadFile(r.data, 'peserta_ktp.zip'))
+export const exportPesertaPassportZip = (params, onProgress) =>
+  client
+    .get('/peserta/export/passport-zip', { params, responseType: 'blob', onDownloadProgress: onProgress })
+    .then((r) => downloadFile(r.data, 'peserta_passport.zip'))
 export const downloadPesertaImportTemplate = () =>
   client
     .get('/peserta/import/template', { responseType: 'blob' })
