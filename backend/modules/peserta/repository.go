@@ -129,6 +129,15 @@ func (r *Repository) SaveTx(tx *gorm.DB, user *users.User) error {
 	return tx.Model(user).Select("*").Updates(user).Error
 }
 
+// UpdateAttendanceStatus writes only the attendance_status column, used by
+// Service.RegenerateAttendanceStatuses — a targeted single-column update
+// (rather than Save's full-row Select("*")) so a bulk recompute over every
+// peserta can't clobber any other field with a stale in-memory value, and
+// doesn't need the stale-preloaded-association handling Save requires.
+func (r *Repository) UpdateAttendanceStatus(id uint64, status string) error {
+	return r.DB.Model(&users.User{}).Where("id = ?", id).Update("attendance_status", status).Error
+}
+
 // FindByUserID is FindByUUID keyed by numeric ID instead — used by the
 // self-service /peserta/me endpoints, which know the caller's ID from the
 // session rather than a path param. Still routed through r.scope(), so a

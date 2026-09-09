@@ -139,7 +139,7 @@ func main() {
 	qrGateHandler := qr_gate.NewHandler(db)
 	qrGateHandler.RegisterRoutes(api, sessionAuth, guard)
 
-	dashboardHandler := dashboard.NewHandler(db)
+	dashboardHandler := dashboard.NewHandler(db, pesertaHandler.Service)
 	dashboardHandler.RegisterRoutes(api, sessionAuth)
 
 	ocrAPIKey, ocrModel := cfg.AnthropicAPIKey, cfg.AnthropicModel

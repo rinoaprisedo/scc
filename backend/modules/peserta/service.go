@@ -70,20 +70,14 @@ func strSet(s *string) bool {
 // (see the "stale preloaded association" comments below), so checking the
 // struct pointer here would read as incomplete right after a save that just
 // set a real city/airport.
-// PassportFile is deliberately not part of completeness — it was added
-// after some participants had already finished onboarding without it, and
-// requiring it here would retroactively bounce already-complete profiles
-// back into the mandatory flow. It's enforced only at the point of filling
-// the form for the first time (website's formSchema + FormTab's submit-block).
+// MiddleName/LastName are deliberately not required here — plenty of
+// participants (esp. Excel-imported ones) genuinely have only a first name,
+// and requiring either field left otherwise-fully-filled profiles stuck
+// showing as incomplete.
 func isFormComplete(u *users.User) bool {
 	cityOK := u.OriginCityID != nil || strSet(u.OriginCityOther)
-	// A peserta whose passport genuinely has only one name (PassportSingleName)
-	// never has a LastName to give — see FormTab.jsx's "hanya 1 nama"
-	// checkbox, which hides the field for them entirely.
-	nameOK := strSet(u.LastName) || u.PassportSingleName
 	return strSet(u.Title) &&
 		strSet(u.FirstName) &&
-		nameOK &&
 		u.BirthDate != nil &&
 		cityOK &&
 		u.NearestAirportID != nil &&
@@ -92,6 +86,7 @@ func isFormComplete(u *users.User) bool {
 		strSet(u.KtpNumber) &&
 		strSet(u.KtpFile) &&
 		strSet(u.PassportNumber) &&
+		strSet(u.PassportFile) &&
 		u.PassportExpiry != nil
 }
 
@@ -118,6 +113,40 @@ func recomputeAttendanceStatus(u *users.User) {
 		}
 		u.AttendanceStatus = &next
 	}
+}
+
+// RegenerateAttendanceStatuses recomputes every peserta's AttendanceStatus
+// from their current profile/shirt-size data, fixing rows where the two have
+// drifted apart (e.g. a direct DB edit, or any write path added later that
+// forgets to call recomputeAttendanceStatus). "belum_konfirmasi" and
+// "tidak_hadir" rows are left alone, same as a single-row recompute — see
+// recomputeAttendanceStatus. Called on every dashboard load
+// (dashboard.Service.Summary) and every Peserta admin list load (List
+// below), rather than on a schedule, since this data doesn't change fast
+// enough to need one. Returns how many rows were actually changed.
+func (s *Service) RegenerateAttendanceStatuses() (int, error) {
+	list, err := s.repo.ListAll("")
+	if err != nil {
+		return 0, err
+	}
+
+	updated := 0
+	for i := range list {
+		user := list[i]
+		if user.AttendanceStatus == nil {
+			continue
+		}
+		before := *user.AttendanceStatus
+		recomputeAttendanceStatus(&user)
+		if *user.AttendanceStatus == before {
+			continue
+		}
+		if err := s.repo.UpdateAttendanceStatus(user.ID, *user.AttendanceStatus); err != nil {
+			return updated, err
+		}
+		updated++
+	}
+	return updated, nil
 }
 
 // placeholderEmailDomain backs the synthetic email generated when a peserta
@@ -183,7 +212,14 @@ func (s *Service) invalidateSessions(userID uint64) {
 	_ = s.repo.DeleteAllSessions(userID)
 }
 
+// List regenerates every peserta's AttendanceStatus before reading the page
+// back, same as dashboard.Service.Summary — so opening/paging through the
+// Peserta admin list also self-heals any row where AttendanceStatus drifted
+// out of sync with the underlying profile data.
 func (s *Service) List(p utils.Pagination) ([]UserWithPoints, int64, error) {
+	if _, err := s.RegenerateAttendanceStatuses(); err != nil {
+		return nil, 0, err
+	}
 	return s.repo.List(p)
 }
 

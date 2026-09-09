@@ -24,12 +24,23 @@ import (
 // status isn't tracked as export-worthy here. Order must match exportRow's
 // return order exactly.
 var exportColumns = func() []string {
-	cols := make([]string, 0, len(importColumnDefs)+3)
+	cols := make([]string, 0, len(importColumnDefs)+4)
 	for _, c := range importColumnDefs {
 		cols = append(cols, c.Header)
 	}
-	return append(cols, "Kehadiran", "Foto KTP", "Foto Paspor")
+	return append(cols, "Kehadiran", "Foto KTP", "Foto Paspor", "Updated At (WIB)")
 }()
+
+// wib is a fixed +7 offset rather than time.LoadLocation("Asia/Jakarta") —
+// the production image (alpine, see backend/Dockerfile) has no tzdata
+// installed, so LoadLocation would fail at runtime there even though it
+// works fine on a dev machine with system tzdata. Indonesia's WIB has no
+// DST, so a fixed offset is exact, not an approximation.
+var wib = time.FixedZone("WIB", 7*60*60)
+
+func datetimeValWIB(t time.Time) string {
+	return t.In(wib).Format("2006-01-02 15:04:05")
+}
 
 var attendanceStatusLabels = map[string]string{
 	StatusBelumKonfirmasi:   "Belum Konfirmasi",
@@ -96,6 +107,7 @@ func exportRow(s *Service, u users.User) []string {
 		attendanceStatusLabel(u.AttendanceStatus),
 		s.FileURL(u.KtpFile),
 		s.FileURL(u.PassportFile),
+		datetimeValWIB(u.UpdatedAt),
 	}
 }
 

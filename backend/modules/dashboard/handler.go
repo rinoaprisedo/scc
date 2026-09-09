@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"baseadmin/backend/modules/peserta"
 	"baseadmin/backend/utils"
 
 	"github.com/gin-gonic/gin"
@@ -12,8 +13,12 @@ type Handler struct {
 	Service *Service
 }
 
-func NewHandler(db *gorm.DB) *Handler {
-	return &Handler{Service: NewService(NewRepository(db))}
+// NewHandler takes the already-constructed peserta.Service (rather than
+// building its own) so the dashboard's attendance-status regenerate reuses
+// the exact same business logic peserta's own CRUD paths use, instead of a
+// second copy of recomputeAttendanceStatus's rules living in this module.
+func NewHandler(db *gorm.DB, pesertaService *peserta.Service) *Handler {
+	return &Handler{Service: NewService(NewRepository(db), pesertaService)}
 }
 
 // Summary godoc

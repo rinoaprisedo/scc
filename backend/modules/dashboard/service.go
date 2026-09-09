@@ -29,11 +29,12 @@ var dietaryOrder = []string{"tidak ada pantangan", "tidak makan daging", "tidak 
 
 // Service holds business rules for the dashboard module.
 type Service struct {
-	repo *Repository
+	repo    *Repository
+	peserta *peserta.Service
 }
 
-func NewService(repo *Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo *Repository, pesertaService *peserta.Service) *Service {
+	return &Service{repo: repo, peserta: pesertaService}
 }
 
 type NamedCount struct {
@@ -64,6 +65,16 @@ type Summary struct {
 }
 
 func (s *Service) Summary() (*Summary, error) {
+	// Regenerated on every dashboard load rather than on a write path or a
+	// schedule — piggybacks here so a stale attendance_status (data complete
+	// but status not, or vice versa) is caught the moment an admin looks at
+	// the dashboard, with no separate job to wire up. See
+	// peserta.Service.RegenerateAttendanceStatuses for why some statuses are
+	// left untouched.
+	if _, err := s.peserta.RegenerateAttendanceStatuses(); err != nil {
+		return nil, err
+	}
+
 	total, err := s.repo.TotalPeserta()
 	if err != nil {
 		return nil, err
