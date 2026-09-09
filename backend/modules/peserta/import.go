@@ -80,9 +80,14 @@ var importSizeOptions = []string{"S", "M", "L", "XL", "XXL", "XXXL"}
 
 var importEmailRegex = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
 
-// importDigitsRegex backs NIK/Nomor KTP format validation — both are
-// Indonesian ID numbers, digits only.
+// importDigitsRegex backs Nomor KTP format validation — an Indonesian ID
+// number, digits only.
 var importDigitsRegex = regexp.MustCompile(`^[0-9]+$`)
+
+// importNIKRegex backs NIK format validation. Unlike Nomor KTP, NIK also
+// doubles as the login identifier for foreign participants who register
+// with a passport number instead of a KTP, so it must accept letters too.
+var importNIKRegex = regexp.MustCompile(`^[a-zA-Z0-9]+$`)
 
 func containsOptionFold(options []string, v string) bool {
 	for _, o := range options {
@@ -221,8 +226,8 @@ func (s *Service) prepareImportRows(f *excelize.File) (prepared []preparedRow, r
 		}
 
 		nik := values["nik"]
-		if !importDigitsRegex.MatchString(nik) {
-			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "NIK must contain digits only"})
+		if !importNIKRegex.MatchString(nik) {
+			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "NIK must contain letters and/or numbers only"})
 			continue
 		}
 		if prevRow, ok := seenNIK[nik]; ok {
