@@ -259,6 +259,18 @@ func (s *Service) Get(uuidStr string) (*users.User, error) {
 	return user, nil
 }
 
+// GetByUserID backs the handler's form_edit_deadline gate on UpdateMe — it
+// needs the peserta's current AttendanceStatus before deciding whether the
+// deadline applies (only hadir_lengkap peserta are locked out; others keep
+// editing past the deadline until their data is complete).
+func (s *Service) GetByUserID(userID uint64) (*users.User, error) {
+	user, err := s.repo.FindByUserID(userID)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+	return user, nil
+}
+
 // ProfileInput holds every Peserta-specific field as plain strings — dates
 // as "2006-01-02", UUIDs for relations — so the handler stays a thin
 // JSON-binding layer and all parsing/resolution lives here.

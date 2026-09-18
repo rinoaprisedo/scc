@@ -412,10 +412,20 @@ func (h *Handler) UpdateMe(c *gin.Context) {
 		return
 	}
 
-	settingsMap, _ := h.SettingsService.List()
-	if isPastDeadline(settingsMap["form_edit_deadline"]) {
-		utils.Error(c, 403, "Maaf, batas waktu pengisian/edit formulir sudah lewat")
+	current, err := h.Service.GetByUserID(*userID)
+	if err != nil {
+		utils.Error(c, 404, "peserta not found")
 		return
+	}
+	// Only a peserta who already reached hadir_lengkap (Hadir + Data
+	// Lengkap) is locked out by the deadline — anyone still incomplete keeps
+	// editing past it until their data is actually complete.
+	if current.AttendanceStatus != nil && *current.AttendanceStatus == StatusHadirLengkap {
+		settingsMap, _ := h.SettingsService.List()
+		if isPastDeadline(settingsMap["form_edit_deadline"]) {
+			utils.Error(c, 403, "Maaf, batas waktu pengisian/edit formulir sudah lewat")
+			return
+		}
 	}
 
 	user, err := h.Service.UpdateProfile(*userID, req.toInput())
