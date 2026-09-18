@@ -8,7 +8,7 @@ services:
       POSTGRES_DB: scc
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-    ports: ["5435:5432"]
+    ports: ["5406:5432"]
     volumes: [pgdata:/var/lib/postgresql]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -17,7 +17,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: scc-redis
-    ports: ["6381:6379"]
+    ports: ["6306:6379"]
     command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]

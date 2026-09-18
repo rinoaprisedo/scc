@@ -435,18 +435,14 @@ function Dashboard() {
         />
       )}
 
-      {(stage === 'form' || stage === 'shirt') && formEditClosed ? (
-        <NoticeScreen title="Maaf" message="Batas waktu pengisian formulir sudah lewat." onLogout={handleLogout} />
-      ) : (
-        (stage === 'form' || stage === 'shirt' || editingProfile) && (
-          <OnboardingModal
-            user={user}
-            onUpdated={refreshUser}
-            onCancel={handleLogout}
-            mode={stage === 'done' ? 'edit' : 'onboarding'}
-            onClose={() => setEditingProfile(false)}
-          />
-        )
+      {(stage === 'form' || stage === 'shirt' || editingProfile) && (
+        <OnboardingModal
+          user={user}
+          onUpdated={refreshUser}
+          onCancel={handleLogout}
+          mode={stage === 'done' ? 'edit' : 'onboarding'}
+          onClose={() => setEditingProfile(false)}
+        />
       )}
     </div>
   )
