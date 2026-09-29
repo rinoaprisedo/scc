@@ -17,6 +17,16 @@ const (
 	StatusRejected        = "rejected"
 )
 
+// TrxStatus values the AI extraction reads directly off the payment-proof
+// screenshot itself (e.g. a bank e-receipt showing "Transaksi Gagal") —
+// independent of Status above, which is this app's own approval workflow
+// state. A screenshot proving a failed transaction still has to auto-reject
+// the submission (see ocr.go processOCR), since there's nothing to approve.
+const (
+	TrxStatusBerhasil = "berhasil"
+	TrxStatusGagal    = "gagal"
+)
+
 // QrisCrossBorder is an admin-recorded cross-border QRIS top-up: which
 // peserta it's for, proof-of-payment image, and the amount in both
 // currencies (foreign currency the participant paid, IDR the equivalent
@@ -39,6 +49,9 @@ type QrisCrossBorder struct {
 	ReferenceNumber *string `gorm:"type:varchar(100)" json:"reference_number"`
 	RejectReason    *string `gorm:"type:varchar(255)" json:"reject_reason"`
 	Status          string  `gorm:"type:varchar(20);not null;default:pending" json:"status"`
+	// TrxStatus is nil until the OCR job reads the screenshot — see
+	// TrxStatusBerhasil/TrxStatusGagal above.
+	TrxStatus *string `gorm:"type:varchar(20)" json:"trx_status"`
 }
 
 func (QrisCrossBorder) TableName() string { return "qris_cross_borders" }

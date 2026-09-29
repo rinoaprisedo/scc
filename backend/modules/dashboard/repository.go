@@ -1,6 +1,8 @@
 package dashboard
 
 import (
+	"time"
+
 	"baseadmin/backend/modules/users"
 
 	"gorm.io/gorm"
@@ -106,6 +108,48 @@ func (r *Repository) BlazerSizeStockRows() ([]BlazerSizeStockRow, error) {
 		Where("bs.deleted_at IS NULL").
 		Group(`bs.id, bs.size, bs.stock, bs."order"`).
 		Order(`bs."order" ASC, bs.id ASC`).
+		Scan(&rows).Error
+	return rows, err
+}
+
+// QrisCrossBorderStatusCounts tallies every non-deleted qris_cross_border row
+// by its approval status (pending/waiting_approval/approved/rejected) — the
+// system-managed "pending" state is included since a stuck/still-processing
+// row is exactly the kind of thing this stat card should surface.
+func (r *Repository) QrisCrossBorderStatusCounts() ([]GroupCount, error) {
+	var rows []GroupCount
+	err := r.DB.Table("qris_cross_borders").
+		Select("status AS value, COUNT(*) AS count").
+		Where("deleted_at IS NULL").
+		Group("status").Scan(&rows).Error
+	return rows, err
+}
+
+// QrisCrossBorderTopRow is one qris_cross_border submission's peserta
+// identity and nominal, for the dashboard's "highest nominal" table.
+type QrisCrossBorderTopRow struct {
+	PesertaName   string
+	PesertaKtp    *string
+	MerchantName  *string
+	NominalAsing  float64
+	NominalRupiah float64
+	Status        string
+	CreatedAt     time.Time
+}
+
+// QrisCrossBorderTopNominal lists the top `limit` non-deleted submissions
+// with the given status by IDR nominal, largest first — scoped to "approved"
+// by the caller (dashboard.Service.Summary) since a pending/rejected amount
+// hasn't actually been confirmed as real money moved.
+func (r *Repository) QrisCrossBorderTopNominal(limit int, status string) ([]QrisCrossBorderTopRow, error) {
+	var rows []QrisCrossBorderTopRow
+	err := r.DB.Table("qris_cross_borders AS q").
+		Select(`u.name AS peserta_name, u.ktp_number AS peserta_ktp, q.merchant_name AS merchant_name,
+			q.nominal_asing AS nominal_asing, q.nominal_rupiah AS nominal_rupiah, q.status AS status, q.created_at AS created_at`).
+		Joins("JOIN users u ON u.id = q.peserta_id").
+		Where("q.deleted_at IS NULL AND q.status = ?", status).
+		Order("q.nominal_rupiah DESC").
+		Limit(limit).
 		Scan(&rows).Error
 	return rows, err
 }

@@ -1,12 +1,17 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Users, UserCheck, UserX, QrCode, Shirt } from 'lucide-react'
+import { Users, UserCheck, UserX, QrCode, Shirt, Banknote } from 'lucide-react'
+import { format } from 'date-fns'
 import { Menubar, MenubarLabel } from '../../components/ui/Menubar'
 import EmptyState from '../../components/ui/EmptyState'
 import Skeleton from '../../components/ui/Skeleton'
+import Table from '../../components/ui/Table'
+import Badge from '../../components/ui/Badge'
 import { getDashboardSummary } from '../../api/dashboard'
 import { attendanceLabel } from '../../utils/attendance'
 import usePageActions from '../../hooks/usePageActions'
+
+const qrisStatusVariant = { pending: 'neutral', waiting_approval: 'warning', approved: 'success', rejected: 'danger' }
 
 // Fixed categorical order (not cycled per-render) for charts with no
 // inherent status meaning — dietary categories and QR gates are identity,
@@ -21,6 +26,8 @@ function StatTile({ icon: Icon, label, value, sublabel, tone = 'primary' }) {
   const toneClasses = {
     primary: 'bg-primary/10 text-primary',
     success: 'bg-success-bg text-success',
+    warning: 'bg-warning-bg text-warning',
+    danger: 'bg-danger-bg text-danger',
     neutral: 'bg-surface-hover text-text-secondary',
   }
   return (
@@ -139,6 +146,8 @@ function Dashboard() {
   const loginPct = total > 0 ? Math.round(((summary.logged_in ?? 0) / total) * 100) : 0
   const blazerSizes = summary.blazer_sizes ?? []
   const maxRemainingStock = Math.max(1, ...blazerSizes.map((b) => Math.max(b.remaining, 0)))
+  const qrisStatus = summary.qris_cross_border_status ?? []
+  const qrisTop = summary.qris_cross_border_top ?? []
 
   return (
     <div className="space-y-6">
@@ -158,6 +167,18 @@ function Dashboard() {
           sublabel={`${100 - loginPct}% dari total peserta`}
           tone="neutral"
         />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {qrisStatus.map((row) => (
+          <StatTile
+            key={row.key}
+            icon={Banknote}
+            label={`Qris ${row.label}`}
+            value={row.count}
+            tone={qrisStatusVariant[row.key] || 'neutral'}
+          />
+        ))}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -217,6 +238,41 @@ function Dashboard() {
           )}
         </ChartCard>
       </div>
+
+      <ChartCard title="20 Nominal Qris Cross Border Tertinggi (IDR)">
+        <Table
+          columns={[
+            {
+              key: 'peserta_name',
+              label: 'Peserta',
+              render: (row) => (
+                <div className="flex flex-col">
+                  <span>{row.peserta_name || '-'}</span>
+                  <span className="text-xs text-text-tertiary">{row.peserta_ktp_number || '-'}</span>
+                </div>
+              ),
+            },
+            { key: 'merchant_name', label: 'Merchant', render: (row) => row.merchant_name || '-' },
+            {
+              key: 'nominal_asing',
+              label: 'Nominal (Asing)',
+              render: (row) => Number(row.nominal_asing).toLocaleString('id-ID', { minimumFractionDigits: 2 }),
+            },
+            {
+              key: 'nominal_rupiah',
+              label: 'Nominal (IDR)',
+              render: (row) => `Rp ${Number(row.nominal_rupiah).toLocaleString('id-ID')}`,
+            },
+            {
+              key: 'status',
+              label: 'Status',
+              render: (row) => <Badge variant={qrisStatusVariant[row.status] || 'neutral'}>{row.status}</Badge>,
+            },
+            { key: 'created_at', label: 'Created', render: (row) => format(new Date(row.created_at), 'PP p') },
+          ]}
+          data={qrisTop}
+        />
+      </ChartCard>
     </div>
   )
 }

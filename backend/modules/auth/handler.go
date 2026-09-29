@@ -66,7 +66,7 @@ func (h *Handler) Login(c *gin.Context) {
 
 	secure := h.Cfg.AppEnv == "production"
 	c.SetSameSite(3) // strict
-	c.SetCookie(session.CookieName, result.Token, h.Cfg.SessionMaxAge, "/", h.Cfg.CookieDomain, secure, true)
+	c.SetCookie(session.CookieName, result.Token, result.MaxAge, "/", h.Cfg.CookieDomain, secure, true)
 
 	middleware.ClearLoginFailures(c, h.Redis)
 	activity_logs.LogActivity(&result.User.ID, activity_logs.ActionLogin, "auth", result.User.UUID.String(), nil, gin.H{"result": "success"}, c.ClientIP(), c.Request.UserAgent())
@@ -110,7 +110,7 @@ func (h *Handler) PesertaLogin(c *gin.Context) {
 
 	secure := h.Cfg.AppEnv == "production"
 	c.SetSameSite(3) // strict
-	c.SetCookie(session.CookieName, result.Token, h.Cfg.SessionMaxAge, "/", h.Cfg.CookieDomain, secure, true)
+	c.SetCookie(session.CookieName, result.Token, result.MaxAge, "/", h.Cfg.CookieDomain, secure, true)
 
 	middleware.ClearLoginFailures(c, h.Redis)
 	activity_logs.LogActivity(&result.User.ID, activity_logs.ActionLogin, "auth", result.User.UUID.String(), nil, gin.H{"result": "success"}, c.ClientIP(), c.Request.UserAgent())

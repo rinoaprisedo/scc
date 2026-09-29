@@ -2,14 +2,14 @@ import { useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Plus, Pencil, Trash2, Check, X, Filter, ZoomIn } from 'lucide-react'
+import { Plus, Pencil, Trash2, Check, X, Filter, ZoomIn, MoreHorizontal, FileSpreadsheet } from 'lucide-react'
 import { format } from 'date-fns'
 import Table from '../../components/ui/Table'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Select from '../../components/ui/Select'
 import AsyncSelect from '../../components/ui/AsyncSelect'
-import { Menubar, MenubarAction, MenubarMenu, MenubarLabel, MenubarSeparator } from '../../components/ui/Menubar'
+import { Menubar, MenubarAction, MenubarMenu, MenubarItem, MenubarLabel, MenubarSeparator } from '../../components/ui/Menubar'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import QrisCrossBorderFormModal from './QrisCrossBorderFormModal'
 import {
@@ -18,6 +18,7 @@ import {
   updateQrisCrossBorder,
   deleteQrisCrossBorder,
   updateQrisCrossBorderStatus,
+  exportQrisCrossBorderExcel,
 } from '../../api/qrisCrossBorder'
 import { searchPesertaOptions } from '../../api/peserta'
 import { fileURL } from '../../utils/url'
@@ -26,6 +27,8 @@ import usePageActions from '../../hooks/usePageActions'
 
 const statusVariant = { pending: 'neutral', waiting_approval: 'warning', approved: 'success', rejected: 'danger' }
 const statusLabel = { pending: 'Pending (Diproses AI)', waiting_approval: 'Waiting Approval', approved: 'Approved', rejected: 'Rejected' }
+const trxStatusVariant = { berhasil: 'success', gagal: 'danger' }
+const trxStatusLabel = { berhasil: 'Berhasil', gagal: 'Gagal' }
 
 function QrisCrossBorder() {
   const { canCreate, canEdit, canDelete } = usePermission()
@@ -37,6 +40,8 @@ function QrisCrossBorder() {
   const [sortDir, setSortDir] = useState('desc')
   const [status, setStatus] = useState('')
   const [draftStatus, setDraftStatus] = useState('')
+  const [trxStatus, setTrxStatus] = useState('')
+  const [draftTrxStatus, setDraftTrxStatus] = useState('')
   const [pesertaFilter, setPesertaFilter] = useState('')
   const [draftPeserta, setDraftPeserta] = useState('')
   const [draftPesertaLabel, setDraftPesertaLabel] = useState('')
@@ -46,7 +51,7 @@ function QrisCrossBorder() {
   const [zoomedImage, setZoomedImage] = useState(null)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['qris-cross-border', { page, limit, search, sortBy, sortDir, status, pesertaFilter }],
+    queryKey: ['qris-cross-border', { page, limit, search, sortBy, sortDir, status, trxStatus, pesertaFilter }],
     queryFn: () =>
       getQrisCrossBorder({
         page,
@@ -55,6 +60,7 @@ function QrisCrossBorder() {
         sort_by: sortBy,
         sort_dir: sortDir,
         status,
+        trx_status: trxStatus,
         peserta_uuid: pesertaFilter,
       }),
   })
@@ -106,10 +112,39 @@ function QrisCrossBorder() {
         </button>
       ),
     },
-    { key: 'peserta_name', label: 'Peserta', sortable: false, render: (row) => row.peserta_name || '-' },
-    { key: 'peserta_ktp_number', label: 'NIK', render: (row) => row.peserta_ktp_number || '-' },
-    { key: 'merchant_name', label: 'Merchant', sortable: false, render: (row) => row.merchant_name || '-' },
-    { key: 'reference_number', label: 'No. Referensi', sortable: false, render: (row) => row.reference_number || '-' },
+    {
+      key: 'peserta_name',
+      label: 'Peserta',
+      sortable: false,
+      render: (row) => (
+        <div className="flex flex-col">
+          <span>{row.peserta_name || '-'}</span>
+          <span className="text-xs text-text-tertiary">{row.peserta_ktp_number || '-'}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'merchant_name',
+      label: 'Merchant',
+      sortable: false,
+      render: (row) => (
+        <div className="flex flex-col">
+          <span>{row.merchant_name || '-'}</span>
+          <span className="text-xs text-text-tertiary">{row.reference_number || '-'}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'trx_status',
+      label: 'Status Trx',
+      sortable: false,
+      render: (row) =>
+        row.trx_status ? (
+          <Badge variant={trxStatusVariant[row.trx_status] || 'neutral'}>{trxStatusLabel[row.trx_status] || row.trx_status}</Badge>
+        ) : (
+          '-'
+        ),
+    },
     {
       key: 'nominal_asing',
       label: 'Nominal (Asing)',
@@ -204,7 +239,7 @@ function QrisCrossBorder() {
               />
             </>
           )}
-          <MenubarMenu id="filter" label="Filter" icon={Filter} align="sheet" active={!!(status || pesertaFilter)}>
+          <MenubarMenu id="filter" label="Filter" icon={Filter} align="sheet" active={!!(status || trxStatus || pesertaFilter)}>
             {(close) => (
               <div className="flex w-full flex-col gap-3 p-2 sm:w-64">
                 <AsyncSelect
@@ -228,15 +263,22 @@ function QrisCrossBorder() {
                   <option value="approved">Approved</option>
                   <option value="rejected">Rejected</option>
                 </Select>
+                <Select label="Status Trx" value={draftTrxStatus} onChange={(e) => setDraftTrxStatus(e.target.value)}>
+                  <option value="">All</option>
+                  <option value="berhasil">Berhasil</option>
+                  <option value="gagal">Gagal</option>
+                </Select>
                 <div className="flex items-center justify-end gap-2 border-t border-surface-border pt-3">
                   <Button
                     variant="secondary"
                     className="h-[32px] px-3"
                     onClick={() => {
                       setDraftStatus('')
+                      setDraftTrxStatus('')
                       setDraftPeserta('')
                       setDraftPesertaLabel('')
                       setStatus('')
+                      setTrxStatus('')
                       setPesertaFilter('')
                       setPage(1)
                       close()
@@ -248,6 +290,7 @@ function QrisCrossBorder() {
                     className="h-[32px] px-3"
                     onClick={() => {
                       setStatus(draftStatus)
+                      setTrxStatus(draftTrxStatus)
                       setPesertaFilter(draftPeserta)
                       setPage(1)
                       close()
@@ -259,9 +302,22 @@ function QrisCrossBorder() {
               </div>
             )}
           </MenubarMenu>
+          <MenubarMenu id="others" label="Others" icon={MoreHorizontal} align="right">
+            <MenubarItem
+              label="Export Excel"
+              icon={FileSpreadsheet}
+              onClick={() =>
+                toast.promise(exportQrisCrossBorderExcel({ search, status, trx_status: trxStatus, peserta_uuid: pesertaFilter }), {
+                  loading: 'Exporting...',
+                  success: 'Excel file downloaded',
+                  error: 'Export failed',
+                })
+              }
+            />
+          </MenubarMenu>
         </Menubar>
       ),
-      [canCreate, status, draftStatus, pesertaFilter, draftPeserta, draftPesertaLabel],
+      [canCreate, status, draftStatus, trxStatus, draftTrxStatus, pesertaFilter, draftPeserta, draftPesertaLabel, search],
     ),
   )
 

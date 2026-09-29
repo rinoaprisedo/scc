@@ -18,18 +18,24 @@ func NewRepository(db *gorm.DB) *Repository {
 // List always qualifies its own table's columns (qris_cross_borders.*) —
 // search/pesertaUUID join against users, which also has a created_at/status
 // column, so an unqualified ORDER BY/WHERE would be ambiguous.
-func (r *Repository) List(p utils.Pagination, status, pesertaUUID string) ([]QrisCrossBorder, int64, error) {
+func (r *Repository) List(p utils.Pagination, status, trxStatus, pesertaUUID string) ([]QrisCrossBorder, int64, error) {
 	q := r.DB.Model(&QrisCrossBorder{}).Preload("Peserta")
 
 	if status != "" {
 		q = q.Where("qris_cross_borders.status = ?", status)
+	}
+	if trxStatus != "" {
+		q = q.Where("qris_cross_borders.trx_status = ?", trxStatus)
 	}
 	if p.Search != "" || pesertaUUID != "" {
 		q = q.Joins("JOIN users ON users.id = qris_cross_borders.peserta_id")
 	}
 	if p.Search != "" {
 		like := "%" + p.Search + "%"
-		q = q.Where("users.name ILIKE ? OR users.ktp_number ILIKE ?", like, like)
+		q = q.Where(
+			"users.name ILIKE ? OR users.ktp_number ILIKE ? OR qris_cross_borders.reference_number ILIKE ? OR qris_cross_borders.merchant_name ILIKE ?",
+			like, like, like, like,
+		)
 	}
 	if pesertaUUID != "" {
 		q = q.Where("users.uuid = ?", pesertaUUID)
@@ -61,6 +67,37 @@ func (r *Repository) ListByPeserta(pesertaID uint64, p utils.Pagination) ([]Qris
 	return list, total, err
 }
 
+// ListAll returns every row matching the given filters, unpaginated — backs
+// the Excel export, which needs the full filtered result set rather than one
+// page of it. Filter semantics mirror List exactly.
+func (r *Repository) ListAll(search, status, trxStatus, pesertaUUID string) ([]QrisCrossBorder, error) {
+	q := r.DB.Model(&QrisCrossBorder{}).Preload("Peserta")
+
+	if status != "" {
+		q = q.Where("qris_cross_borders.status = ?", status)
+	}
+	if trxStatus != "" {
+		q = q.Where("qris_cross_borders.trx_status = ?", trxStatus)
+	}
+	if search != "" || pesertaUUID != "" {
+		q = q.Joins("JOIN users ON users.id = qris_cross_borders.peserta_id")
+	}
+	if search != "" {
+		like := "%" + search + "%"
+		q = q.Where(
+			"users.name ILIKE ? OR users.ktp_number ILIKE ? OR qris_cross_borders.reference_number ILIKE ? OR qris_cross_borders.merchant_name ILIKE ?",
+			like, like, like, like,
+		)
+	}
+	if pesertaUUID != "" {
+		q = q.Where("users.uuid = ?", pesertaUUID)
+	}
+
+	var list []QrisCrossBorder
+	err := q.Order("qris_cross_borders.created_at DESC").Find(&list).Error
+	return list, err
+}
+
 func (r *Repository) FindByUUID(uuidStr string) (*QrisCrossBorder, error) {
 	var row QrisCrossBorder
 	if err := r.DB.Preload("Peserta").Where("uuid = ?", uuidStr).First(&row).Error; err != nil {
@@ -83,11 +120,13 @@ func (r *Repository) Save(row *QrisCrossBorder) error {
 // ReferenceNumberExists backs duplicate detection — both the OCR job's
 // automatic check and Service.Update's manual-edit guard. excludeUUID lets
 // a record's own (already-saved) reference number not count as a collision
-// against itself.
+// against itself. Rejected rows are excluded, matching
+// idx_qris_cross_borders_reference_number_active — a rejected record no
+// longer reserves its reference number.
 func (r *Repository) ReferenceNumberExists(refNumber, excludeUUID string) (bool, error) {
 	var count int64
 	err := r.DB.Model(&QrisCrossBorder{}).
-		Where("reference_number = ? AND uuid != ?", refNumber, excludeUUID).
+		Where("reference_number = ? AND uuid != ? AND status != ?", refNumber, excludeUUID, StatusRejected).
 		Count(&count).Error
 	return count > 0, err
 }

@@ -33,14 +33,15 @@ func parseFloatForm(c *gin.Context, key string) float64 {
 // @Security		SessionCookie
 // @Param			page	query		int		false	"Page number"
 // @Param			limit	query		int		false	"Page size"
-// @Param			search	query		string	false	"Search by peserta name/NIK"
+// @Param			search	query		string	false	"Search by peserta name/NIK/merchant/no. referensi"
 // @Param			status			query		string	false	"Filter by status"
+// @Param			trx_status		query		string	false	"Filter by transaction status (berhasil/gagal)"
 // @Param			peserta_uuid	query		string	false	"Filter by peserta"
 // @Success		200				{object}	utils.Response
 // @Router			/qris-cross-border [get]
 func (h *Handler) List(c *gin.Context) {
 	p := utils.GetPagination(c, "created_at")
-	list, total, err := h.Service.List(p, c.Query("status"), c.Query("peserta_uuid"))
+	list, total, err := h.Service.List(p, c.Query("status"), c.Query("trx_status"), c.Query("peserta_uuid"))
 	if err != nil {
 		utils.Error(c, 500, "failed to fetch qris cross border records")
 		return

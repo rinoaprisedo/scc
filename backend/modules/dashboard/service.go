@@ -1,6 +1,11 @@
 package dashboard
 
-import "baseadmin/backend/modules/peserta"
+import (
+	"time"
+
+	"baseadmin/backend/modules/peserta"
+	"baseadmin/backend/modules/qris_cross_border"
+)
 
 // attendanceLabels mirrors peserta/export.go's attendanceStatusLabels (kept
 // unexported there) — a nil/unrecognized status reads the same as
@@ -26,6 +31,40 @@ var attendanceOrder = []string{
 // for peserta who haven't set one yet. Each option string doubles as its own
 // display label, so no separate label map is needed.
 var dietaryOrder = []string{"tidak ada pantangan", "tidak makan daging", "tidak makan ayam", "tidak makan seafood", "vegetarian", "Belum Diisi"}
+
+// qrisStatusLabels mirrors the frontend's own statusLabel map
+// (pages/qris_cross_border/QrisCrossBorder.jsx) — same precedent as
+// attendanceLabels above.
+var qrisStatusLabels = map[string]string{
+	qris_cross_border.StatusPending:         "Pending (Diproses AI)",
+	qris_cross_border.StatusWaitingApproval: "Waiting Approval",
+	qris_cross_border.StatusApproved:        "Approved",
+	qris_cross_border.StatusRejected:        "Rejected",
+}
+
+var qrisStatusOrder = []string{
+	qris_cross_border.StatusPending,
+	qris_cross_border.StatusWaitingApproval,
+	qris_cross_border.StatusApproved,
+	qris_cross_border.StatusRejected,
+}
+
+// QrisCrossBorderTop is one row of the dashboard's "highest nominal" table —
+// flattened the same way qris_cross_border.Response is, instead of
+// serializing the full users.User relation.
+type QrisCrossBorderTop struct {
+	PesertaName   string    `json:"peserta_name"`
+	PesertaKtp    string    `json:"peserta_ktp_number"`
+	MerchantName  string    `json:"merchant_name"`
+	NominalAsing  float64   `json:"nominal_asing"`
+	NominalRupiah float64   `json:"nominal_rupiah"`
+	Status        string    `json:"status"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+// qrisCrossBorderTopLimit caps the dashboard's "highest nominal" table —
+// a fixed top-N list, not a paginated one.
+const qrisCrossBorderTopLimit = 20
 
 // Service holds business rules for the dashboard module.
 type Service struct {
@@ -55,13 +94,15 @@ type BlazerSizeStock struct {
 }
 
 type Summary struct {
-	TotalPeserta int64             `json:"total_peserta"`
-	LoggedIn     int64             `json:"logged_in"`
-	NotLoggedIn  int64             `json:"not_logged_in"`
-	Attendance   []NamedCount      `json:"attendance"`
-	Dietary      []NamedCount      `json:"dietary"`
-	QrGates      []NamedCount      `json:"qr_gates"`
-	BlazerSizes  []BlazerSizeStock `json:"blazer_sizes"`
+	TotalPeserta       int64                `json:"total_peserta"`
+	LoggedIn           int64                `json:"logged_in"`
+	NotLoggedIn        int64                `json:"not_logged_in"`
+	Attendance         []NamedCount         `json:"attendance"`
+	Dietary            []NamedCount         `json:"dietary"`
+	QrGates            []NamedCount         `json:"qr_gates"`
+	BlazerSizes        []BlazerSizeStock    `json:"blazer_sizes"`
+	QrisCrossBorder    []NamedCount         `json:"qris_cross_border_status"`
+	QrisCrossBorderTop []QrisCrossBorderTop `json:"qris_cross_border_top"`
 }
 
 func (s *Service) Summary() (*Summary, error) {
@@ -141,13 +182,54 @@ func (s *Service) Summary() (*Summary, error) {
 		})
 	}
 
+	qrisStatusRows, err := s.repo.QrisCrossBorderStatusCounts()
+	if err != nil {
+		return nil, err
+	}
+	qrisStatusByKey := make(map[string]int64, len(qrisStatusRows))
+	for _, row := range qrisStatusRows {
+		if row.Value != nil {
+			qrisStatusByKey[*row.Value] += row.Count
+		}
+	}
+	qrisCrossBorder := make([]NamedCount, 0, len(qrisStatusOrder))
+	for _, key := range qrisStatusOrder {
+		qrisCrossBorder = append(qrisCrossBorder, NamedCount{Key: key, Label: qrisStatusLabels[key], Count: qrisStatusByKey[key]})
+	}
+
+	qrisTopRows, err := s.repo.QrisCrossBorderTopNominal(qrisCrossBorderTopLimit, qris_cross_border.StatusApproved)
+	if err != nil {
+		return nil, err
+	}
+	qrisCrossBorderTop := make([]QrisCrossBorderTop, 0, len(qrisTopRows))
+	for _, row := range qrisTopRows {
+		merchant, ktp := "", ""
+		if row.MerchantName != nil {
+			merchant = *row.MerchantName
+		}
+		if row.PesertaKtp != nil {
+			ktp = *row.PesertaKtp
+		}
+		qrisCrossBorderTop = append(qrisCrossBorderTop, QrisCrossBorderTop{
+			PesertaName:   row.PesertaName,
+			PesertaKtp:    ktp,
+			MerchantName:  merchant,
+			NominalAsing:  row.NominalAsing,
+			NominalRupiah: row.NominalRupiah,
+			Status:        row.Status,
+			CreatedAt:     row.CreatedAt,
+		})
+	}
+
 	return &Summary{
-		TotalPeserta: total,
-		LoggedIn:     loggedIn,
-		NotLoggedIn:  total - loggedIn,
-		Attendance:   attendance,
-		Dietary:      dietary,
-		QrGates:      qrGates,
-		BlazerSizes:  blazerSizes,
+		TotalPeserta:       total,
+		LoggedIn:           loggedIn,
+		NotLoggedIn:        total - loggedIn,
+		Attendance:         attendance,
+		Dietary:            dietary,
+		QrGates:            qrGates,
+		BlazerSizes:        blazerSizes,
+		QrisCrossBorder:    qrisCrossBorder,
+		QrisCrossBorderTop: qrisCrossBorderTop,
 	}, nil
 }

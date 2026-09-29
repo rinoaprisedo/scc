@@ -335,10 +335,10 @@ function Dashboard() {
                     onClick={handleActivate}
                     onKeyDown={(e) => e.key === 'Enter' && handleActivate()}
                     className={`group relative flex cursor-pointer items-center justify-between overflow-hidden rounded-2xl border-2 border-gold-light/60 bg-navy px-8 py-7 shadow-lg transition hover:border-transparent hover:bg-gradient-to-br hover:from-gold-light hover:via-gold hover:to-gold-dark ${
-                      // QRIS Cross Border becomes a floating "Upload QR" button on
-                      // mobile (below) instead of a grid tile — see the fixed
-                      // button after this grid.
-                      action === 'qris' ? 'hidden md:flex' : ''
+                      // Scan QR has no mobile grid tile — the floating button below
+                      // this grid covers it there instead, so QRIS Cross Border
+                      // takes its place in the mobile grid.
+                      action === 'scan' ? 'hidden md:flex' : ''
                     }`}
                   >
                     <div className="pointer-events-none absolute -bottom-10 -right-10 h-32 w-56 rotate-12 bg-gradient-to-tr from-transparent via-gold/25 to-transparent blur-2xl transition group-hover:opacity-0" />
@@ -360,20 +360,20 @@ function Dashboard() {
         <div className="fixed bottom-5 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-1.5 md:hidden">
           <button
             type="button"
-            aria-label="Upload QR"
+            aria-label="Scan QR"
             onClick={() => {
-              if (!isMenuEnabled(publicSettings, 'menu_qris_cross_border_enabled')) {
+              if (!isMenuEnabled(publicSettings, 'menu_scanner_qr_enabled')) {
                 setAlertMessage('Maaf, Fitur ini belum tersedia')
                 return
               }
-              setQrisOpen(true)
+              setScannerOpen(true)
             }}
             className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-gold-light via-gold to-gold-dark text-navy-dark shadow-xl transition hover:opacity-90"
           >
             <QrCode size={26} />
           </button>
           <span className="rounded-full bg-navy-dark/80 px-2.5 py-0.5 text-[11px] font-bold text-white shadow">
-            Upload QR
+            Scan QR
           </span>
         </div>
       )}

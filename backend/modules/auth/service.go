@@ -30,6 +30,17 @@ var (
 // rather than imported to avoid a cross-module dependency for one string.
 const pesertaRoleName = "Peserta"
 
+// pesertaSessionTTL makes the participant website's session effectively
+// permanent — participants sign out only via the explicit Logout button, not
+// an idle/absolute timeout like the admin panel's SESSION_MAX_AGE enforces.
+// Not literally infinite: session.Create applies this same duration to both
+// the Redis key's expiry and EXPIRE on the per-user session set, and EXPIRE
+// with 0 deletes a key immediately rather than making it permanent — so a
+// long fixed duration is used instead of 0. Browsers also independently cap
+// how long a cookie's Max-Age is actually honored (Chrome clamps to ~400
+// days) regardless of what's set here.
+const pesertaSessionTTL = 10 * 365 * 24 * time.Hour
+
 type PermissionDTO struct {
 	Path      string `json:"path"`
 	CanView   bool   `json:"can_view"`
@@ -53,6 +64,10 @@ func NewService(repo *Repository, rdb *redis.Client, cfg *config.Config) *Servic
 type LoginResult struct {
 	User  *users.User
 	Token string
+	// MaxAge is the session cookie lifetime in seconds — Login/PesertaLogin
+	// resolve to different TTLs, so the handler reads it back here instead
+	// of assuming config.SessionMaxAge for both.
+	MaxAge int
 }
 
 func (s *Service) Login(email, password, ip, userAgent string) (*LoginResult, error) {
@@ -60,7 +75,7 @@ func (s *Service) Login(email, password, ip, userAgent string) (*LoginResult, er
 	if err != nil {
 		return nil, ErrInvalidCredentials
 	}
-	return s.authenticate(user, password, ip, userAgent)
+	return s.authenticate(user, password, ip, userAgent, time.Duration(s.cfg.SessionMaxAge)*time.Second)
 }
 
 // PesertaLogin is the NIK + password login used by the participant-facing
@@ -79,10 +94,10 @@ func (s *Service) PesertaLogin(nik, password, ip, userAgent string) (*LoginResul
 	// Create/Update) specifically so this login is case-insensitive —
 	// lowercase the attempt here to match. Admin Login above is untouched
 	// and stays case-sensitive.
-	return s.authenticate(user, strings.ToLower(password), ip, userAgent)
+	return s.authenticate(user, strings.ToLower(password), ip, userAgent, pesertaSessionTTL)
 }
 
-func (s *Service) authenticate(user *users.User, password, ip, userAgent string) (*LoginResult, error) {
+func (s *Service) authenticate(user *users.User, password, ip, userAgent string, ttl time.Duration) (*LoginResult, error) {
 	if !CheckPassword(user.Password, password) {
 		return nil, ErrInvalidCredentials
 	}
@@ -101,7 +116,6 @@ func (s *Service) authenticate(user *users.User, password, ip, userAgent string)
 		IPAddress: ip,
 		UserAgent: userAgent,
 	}
-	ttl := time.Duration(s.cfg.SessionMaxAge) * time.Second
 	if err := session.Create(context.Background(), s.redis, token, data, ttl, s.cfg.SessionMaxConcurrent); err != nil {
 		return nil, ErrSessionFailed
 	}
@@ -121,7 +135,7 @@ func (s *Service) authenticate(user *users.User, password, ip, userAgent string)
 
 	s.repo.UpdateLastLogin(user, time.Now())
 
-	return &LoginResult{User: user, Token: token}, nil
+	return &LoginResult{User: user, Token: token, MaxAge: int(ttl.Seconds())}, nil
 }
 
 func (s *Service) Logout(token string, userID *uint64) {

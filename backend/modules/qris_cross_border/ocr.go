@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"baseadmin/backend/modules/activity_logs"
@@ -21,6 +22,7 @@ const (
 
 	rejectReasonFailedRead = "Gagal membaca bukti pembayaran setelah 3 kali percobaan"
 	rejectReasonDuplicate  = "Duplikat QRIS (No. Referensi sudah terdaftar)"
+	rejectReasonTrxFailed  = "Bukti pembayaran menunjukkan transaksi gagal"
 )
 
 var errExtractionIncomplete = errors.New("qris extraction did not return a reference number")
@@ -32,6 +34,7 @@ type extraction struct {
 	ReferenceNumber string  `json:"reference_number"`
 	NominalAsing    float64 `json:"nominal_asing"`
 	NominalIDR      float64 `json:"nominal_idr"`
+	TrxStatus       string  `json:"trx_status"`
 }
 
 // extractQrisDataTool forces the model's response into this shape via
@@ -58,8 +61,20 @@ var extractQrisDataTool = anthropic.ToolUnionParam{
 					"type":        "number",
 					"description": "Nominal konversi ke Rupiah sebagai angka polos, dari baris '(IDR ...)' atau 'Jumlah'.",
 				},
+				"trx_status": map[string]any{
+					"type": "string",
+					"enum": []string{"berhasil", "gagal"},
+					"description": "Status transaksi sebagaimana ditampilkan PADA screenshot itu sendiri (bukan tebakan dari kelengkapan data). " +
+						"Isi 'berhasil' HANYA jika screenshot secara eksplisit menunjukkan indikator sukses: label seperti 'Berhasil', 'Sukses', " +
+						"'Transaksi Berhasil', 'Success', 'Completed', atau ikon centang/tanda hijau pada status transaksi. " +
+						"Isi 'gagal' jika screenshot menunjukkan indikator gagal/ditolak/dibatalkan/pending/error — label seperti 'Gagal', 'Failed', " +
+						"'Ditolak', 'Dibatalkan', 'Cancelled', 'Declined', 'Pending', ikon silang/tanda merah pada status transaksi, ATAU jika gambar " +
+						"bukan bukti pembayaran QRIS yang sah (mis. halaman error aplikasi, notifikasi gagal, layar kosong, tangkapan layar tidak " +
+						"relevan). Jika tidak ada label status transaksi yang eksplisit sama sekali pada gambar, isi 'gagal' — jangan menganggap " +
+						"'berhasil' hanya karena field lain (merchant/nominal/no. referensi) berhasil terbaca.",
+				},
 			},
-			Required: []string{"merchant_name", "reference_number", "nominal_asing", "nominal_idr"},
+			Required: []string{"merchant_name", "reference_number", "nominal_asing", "nominal_idr", "trx_status"},
 		},
 	},
 }
@@ -80,7 +95,11 @@ func (s *Service) extractQrisData(ctx context.Context, imageBytes []byte) (*extr
 		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(
 				anthropic.NewImageBlockBase64(mediaType, encoded),
-				anthropic.NewTextBlock("Ini screenshot bukti pembayaran QRIS lintas negara. Ekstrak data transaksinya lewat tool extract_qris_data."),
+				anthropic.NewTextBlock(
+					"Ini screenshot bukti pembayaran QRIS lintas negara. Ekstrak data transaksinya lewat tool extract_qris_data. "+
+						"Perhatikan baik-baik status transaksi yang tertulis di screenshot (berhasil/sukses vs gagal/ditolak/dibatalkan/pending/error) — "+
+						"jangan asumsikan berhasil hanya karena tampilannya seperti struk resmi; baca label status yang sebenarnya tertera.",
+				),
 			),
 		},
 	})
@@ -156,9 +175,26 @@ func (s *Service) processOCR(uuidStr string) {
 	row.ReferenceNumber = &result.ReferenceNumber
 	row.NominalAsing = result.NominalAsing
 	row.NominalRupiah = result.NominalIDR
+	trxStatus := strings.ToLower(strings.TrimSpace(result.TrxStatus))
+	if trxStatus != "" {
+		row.TrxStatus = &trxStatus
+	}
 
+	// A screenshot that itself shows a failed/rejected transaction has
+	// nothing valid to approve — auto-reject regardless of whether the
+	// other fields (merchant/reference/nominal) came back looking complete.
+	if trxStatus == TrxStatusGagal {
+		s.finishOCR(row, before, StatusRejected, rejectReasonTrxFailed)
+		return
+	}
 	if duplicate {
 		s.finishOCR(row, before, StatusRejected, rejectReasonDuplicate)
+		return
+	}
+	// A screenshot that itself shows a successful transaction needs no human
+	// review — skip straight to approved instead of waiting_approval.
+	if trxStatus == TrxStatusBerhasil {
+		s.finishOCR(row, before, StatusApproved, "")
 		return
 	}
 	s.finishOCR(row, before, StatusWaitingApproval, "")

@@ -89,7 +89,14 @@ func applyPartialUniqueIndexes(db *gorm.DB) {
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_qr_gates_code_active ON qr_gates (code) WHERE deleted_at IS NULL`,
 		// Second line of defense against duplicate QRIS submissions, behind
 		// the application-level check in qris_cross_border's OCR job.
-		`CREATE UNIQUE INDEX IF NOT EXISTS idx_qris_cross_borders_reference_number_active ON qris_cross_borders (reference_number) WHERE deleted_at IS NULL AND reference_number IS NOT NULL`,
+		// Rejected rows are excluded — a rejected submission (duplicate or a
+		// screenshot itself showing a failed transaction) must never
+		// permanently reserve a reference number and block a real one, or a
+		// legitimate later save that also ends up rejected for the same
+		// reference number would hard-fail on this constraint instead of
+		// writing its rejection (see qris_cross_border.processOCR).
+		`DROP INDEX IF EXISTS idx_qris_cross_borders_reference_number_active`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_qris_cross_borders_reference_number_active ON qris_cross_borders (reference_number) WHERE deleted_at IS NULL AND reference_number IS NOT NULL AND status <> 'rejected'`,
 		// Two rows for the same size would split its stock count across
 		// records, silently under-reporting availability.
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_blazer_sizes_size_active ON blazer_sizes (size) WHERE deleted_at IS NULL`,

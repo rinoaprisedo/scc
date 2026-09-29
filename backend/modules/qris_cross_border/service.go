@@ -75,6 +75,7 @@ type Response struct {
 	ReferenceNumber string    `json:"reference_number"`
 	RejectReason    string    `json:"reject_reason"`
 	Status          string    `json:"status"`
+	TrxStatus       string    `json:"trx_status"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 }
@@ -98,6 +99,9 @@ func toResponse(row QrisCrossBorder) Response {
 	if row.RejectReason != nil {
 		resp.RejectReason = *row.RejectReason
 	}
+	if row.TrxStatus != nil {
+		resp.TrxStatus = *row.TrxStatus
+	}
 	if row.Peserta != nil {
 		resp.PesertaUUID = row.Peserta.UUID
 		resp.PesertaName = row.Peserta.Name
@@ -108,8 +112,8 @@ func toResponse(row QrisCrossBorder) Response {
 	return resp
 }
 
-func (s *Service) List(p utils.Pagination, status, pesertaUUID string) ([]Response, int64, error) {
-	rows, total, err := s.repo.List(p, status, pesertaUUID)
+func (s *Service) List(p utils.Pagination, status, trxStatus, pesertaUUID string) ([]Response, int64, error) {
+	rows, total, err := s.repo.List(p, status, trxStatus, pesertaUUID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -118,6 +122,12 @@ func (s *Service) List(p utils.Pagination, status, pesertaUUID string) ([]Respon
 		list = append(list, toResponse(row))
 	}
 	return list, total, nil
+}
+
+// ListAll backs the Excel export — every matching row unpaginated, with the
+// Peserta relation preloaded so export.go can read name/NIK directly.
+func (s *Service) ListAll(search, status, trxStatus, pesertaUUID string) ([]QrisCrossBorder, error) {
+	return s.repo.ListAll(search, status, trxStatus, pesertaUUID)
 }
 
 func (s *Service) Get(uuidStr string) (*Response, error) {

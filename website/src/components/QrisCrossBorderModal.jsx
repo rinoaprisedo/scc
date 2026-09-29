@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X, Trash2, ZoomIn, CreditCard, ChevronLeft, ChevronRight } from 'lucide-react'
+import { X, Trash2, ZoomIn, CreditCard, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
 import Button from './ui/Button'
 import FileUpload from './ui/FileUpload'
 import { getMyQrisCrossBorder, createMyQrisCrossBorder, deleteMyQrisCrossBorder } from '../api/qrisCrossBorder'
@@ -12,7 +12,7 @@ const STATUS_STYLE = {
   rejected: 'bg-red-100 text-red-700',
 }
 const STATUS_LABEL = {
-  pending: 'Diproses',
+  pending: 'Menunggu Approval',
   waiting_approval: 'Menunggu Persetujuan',
   approved: 'Disetujui',
   rejected: 'Ditolak',
@@ -106,13 +106,12 @@ function QrisCrossBorderModal({ onClose }) {
             <CreditCard size={24} />
           </div>
           <p className="mt-3 text-xl font-bold text-white">QRIS Cross Border</p>
-          <p className="text-xs font-medium uppercase tracking-widest text-gold-light">Upload bukti transaksi</p>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
           <div className="flex flex-col gap-3 rounded-xl border border-surface-border p-4">
             <FileUpload
-              label="Upload Screenshot QRIS"
+              label="Upload Bukti Transaksi QRIS"
               required
               hint="JPEG, PNG, atau WebP"
               error={fileError}
@@ -130,16 +129,27 @@ function QrisCrossBorderModal({ onClose }) {
             />
             {submitError && <p className="text-xs font-medium text-red-600">{submitError}</p>}
             <Button onClick={handleSubmit} disabled={submitting}>
-              {submitting ? 'Mengirim...' : 'Kirim'}
+              {submitting ? 'Mengupload...' : 'Upload'}
             </Button>
           </div>
 
-          <p className="mb-2 mt-6 text-xs font-semibold uppercase tracking-widest text-text-secondary">Riwayat</p>
+          <div className="mb-2 mt-6 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-widest text-text-secondary">Riwayat</p>
+            <button
+              type="button"
+              onClick={() => loadList(page)}
+              disabled={loadingList}
+              className="flex items-center gap-1.5 rounded-lg border border-surface-border px-2.5 py-1 text-xs font-medium text-navy transition hover:bg-surface-bg disabled:opacity-50"
+            >
+              <RefreshCw size={14} className={loadingList ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+          </div>
 
           {loadingList ? (
             <p className="py-10 text-center text-sm text-text-secondary">Memuat...</p>
           ) : list.length === 0 ? (
-            <p className="py-10 text-center text-sm text-text-secondary">Belum ada bukti pembayaran yang diunggah</p>
+            <p className="py-10 text-center text-sm text-text-secondary">Belum ada bukti transaksi QRIS yang diunggah</p>
           ) : (
             <div className="flex flex-col gap-3">
               {list.map((row) => (
@@ -158,7 +168,7 @@ function QrisCrossBorderModal({ onClose }) {
                   <div className="min-w-0 flex-1">
                     {(row.nominal_rupiah > 0 || row.status !== 'rejected') && (
                       <p className="text-sm font-semibold text-navy">
-                        {row.nominal_rupiah > 0 ? `Rp ${Number(row.nominal_rupiah).toLocaleString('id-ID')}` : 'Diproses...'}
+                        {row.nominal_rupiah > 0 ? `Rp ${Number(row.nominal_rupiah).toLocaleString('id-ID')}` : 'Menunggu Approval'}
                       </p>
                     )}
                     <p className="text-xs text-text-secondary">{formatDate(row.created_at)}</p>
