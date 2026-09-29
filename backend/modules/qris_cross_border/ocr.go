@@ -23,6 +23,11 @@ const (
 	rejectReasonFailedRead = "Gagal membaca bukti pembayaran setelah 3 kali percobaan"
 	rejectReasonDuplicate  = "Duplikat QRIS (No. Referensi sudah terdaftar)"
 	rejectReasonTrxFailed  = "Bukti pembayaran menunjukkan transaksi gagal"
+	rejectReasonNotQris    = "Gambar bukan bukti pembayaran QRIS"
+	rejectReasonNotDanamon = "Bukan bukti pembayaran QRIS Bank Danamon"
+	rejectReasonNotMYR     = "Bukan transaksi QRIS Malaysia (tidak ada nominal MYR)"
+
+	acceptedCurrency = "MYR"
 )
 
 var errExtractionIncomplete = errors.New("qris extraction did not return a reference number")
@@ -30,6 +35,9 @@ var errExtractionIncomplete = errors.New("qris extraction did not return a refer
 // extraction is the shape of extract_qris_data's tool input — the fields
 // read back off a QRIS payment-proof screenshot.
 type extraction struct {
+	IsQrisPayment   bool    `json:"is_qris_payment"`
+	IsBankDanamon   bool    `json:"is_bank_danamon"`
+	Currency        string  `json:"currency"`
 	MerchantName    string  `json:"merchant_name"`
 	ReferenceNumber string  `json:"reference_number"`
 	NominalAsing    float64 `json:"nominal_asing"`
@@ -37,14 +45,48 @@ type extraction struct {
 	TrxStatus       string  `json:"trx_status"`
 }
 
+// rejectReason enforces the only proof this program accepts: a Bank Danamon
+// QRIS receipt for a Malaysian (MYR) transaction. Checked server-side on top
+// of the prompt, so a model that fills a field loosely still can't slip a
+// non-MYR or non-Danamon receipt through to approval.
+func (e *extraction) rejectReason() string {
+	switch {
+	case !e.IsQrisPayment:
+		return rejectReasonNotQris
+	case !e.IsBankDanamon:
+		return rejectReasonNotDanamon
+	case strings.ToUpper(strings.TrimSpace(e.Currency)) != acceptedCurrency || e.NominalAsing <= 0:
+		return rejectReasonNotMYR
+	}
+	return ""
+}
+
 // extractQrisDataTool forces the model's response into this shape via
 // tool_choice, so there's no free-text parsing to fall back on.
 var extractQrisDataTool = anthropic.ToolUnionParam{
 	OfTool: &anthropic.ToolParam{
 		Name:        "extract_qris_data",
-		Description: anthropic.String("Extract merchant name, reference number, and both nominal amounts from a QRIS cross-border payment proof screenshot (a bank e-receipt)."),
+		Description: anthropic.String("Validate and extract data from a Bank Danamon QRIS cross-border payment proof screenshot for a Malaysian (MYR) transaction."),
 		InputSchema: anthropic.ToolInputSchemaParam{
 			Properties: map[string]any{
+				"is_qris_payment": map[string]any{
+					"type": "boolean",
+					"description": "true HANYA jika gambar adalah bukti/struk pembayaran QRIS (ada logo/tulisan 'QRIS' atau keterangan pembayaran QRIS). " +
+						"false jika gambar bukan bukti pembayaran QRIS: transfer bank biasa, virtual account, top-up e-wallet, kartu debit/kredit, " +
+						"foto kode QR itu sendiri (bukan struk hasil bayar), foto orang/benda/dokumen, halaman error, layar kosong, atau gambar tidak relevan.",
+				},
+				"is_bank_danamon": map[string]any{
+					"type": "boolean",
+					"description": "true HANYA jika bukti pembayaran jelas diterbitkan oleh Bank Danamon (logo/tulisan 'Danamon', 'Bank Danamon', " +
+						"atau aplikasi 'D-Bank PRO'). false jika dari bank/aplikasi lain (BCA, Mandiri, BRI, BNI, CIMB, GoPay, OVO, DANA, dll.) " +
+						"atau jika asal bank tidak bisa dipastikan dari gambar.",
+				},
+				"currency": map[string]any{
+					"type": "string",
+					"description": "Kode mata uang asing (ISO 4217, huruf besar) dari baris 'Nominal', mis. 'MYR', 'THB', 'SGD'. " +
+						"Ringgit Malaysia yang ditulis 'RM' diisi 'MYR'. Isi string kosong jika tidak ada nominal dalam mata uang asing " +
+						"(mis. hanya ada nominal Rupiah/IDR). Jangan menebak MYR jika tidak tertera di gambar.",
+				},
 				"merchant_name": map[string]any{
 					"type":        "string",
 					"description": "Nama merchant tujuan pembayaran, dari baris 'Merchant Tujuan'.",
@@ -55,7 +97,7 @@ var extractQrisDataTool = anthropic.ToolUnionParam{
 				},
 				"nominal_asing": map[string]any{
 					"type":        "number",
-					"description": "Nominal dalam mata uang asing sebagai angka polos (tanpa simbol mata uang atau pemisah ribuan), dari baris 'Nominal'.",
+					"description": "Nominal dalam mata uang asing sebagai angka polos (tanpa simbol mata uang atau pemisah ribuan), dari baris 'Nominal'. Isi 0 jika tidak ada.",
 				},
 				"nominal_idr": map[string]any{
 					"type":        "number",
@@ -74,7 +116,7 @@ var extractQrisDataTool = anthropic.ToolUnionParam{
 						"'berhasil' hanya karena field lain (merchant/nominal/no. referensi) berhasil terbaca.",
 				},
 			},
-			Required: []string{"merchant_name", "reference_number", "nominal_asing", "nominal_idr", "trx_status"},
+			Required: []string{"is_qris_payment", "is_bank_danamon", "currency", "merchant_name", "reference_number", "nominal_asing", "nominal_idr", "trx_status"},
 		},
 	},
 }
@@ -96,9 +138,14 @@ func (s *Service) extractQrisData(ctx context.Context, imageBytes []byte) (*extr
 			anthropic.NewUserMessage(
 				anthropic.NewImageBlockBase64(mediaType, encoded),
 				anthropic.NewTextBlock(
-					"Ini screenshot bukti pembayaran QRIS lintas negara. Ekstrak data transaksinya lewat tool extract_qris_data. "+
-						"Perhatikan baik-baik status transaksi yang tertulis di screenshot (berhasil/sukses vs gagal/ditolak/dibatalkan/pending/error) — "+
-						"jangan asumsikan berhasil hanya karena tampilannya seperti struk resmi; baca label status yang sebenarnya tertera.",
+					"Periksa gambar ini dan isi tool extract_qris_data. Program ini HANYA menerima bukti pembayaran QRIS lintas negara "+
+						"dari Bank Danamon untuk transaksi di Malaysia dengan nominal dalam Ringgit Malaysia (MYR/RM). "+
+						"1) Pastikan gambar benar-benar bukti pembayaran QRIS (is_qris_payment). "+
+						"2) Pastikan diterbitkan Bank Danamon (is_bank_danamon). "+
+						"3) Baca kode mata uang nominal asing apa adanya (currency) — jangan diisi MYR jika yang tertera mata uang lain atau tidak ada nominal asing. "+
+						"4) Perhatikan baik-baik status transaksi yang tertulis di screenshot (berhasil/sukses vs gagal/ditolak/dibatalkan/pending/error) — "+
+						"jangan asumsikan berhasil hanya karena tampilannya seperti struk resmi; baca label status yang sebenarnya tertera. "+
+						"Laporkan apa yang benar-benar terlihat di gambar; jika sebuah field tidak ada, isi string kosong atau 0.",
 				),
 			),
 		},
@@ -116,7 +163,11 @@ func (s *Service) extractQrisData(ctx context.Context, imageBytes []byte) (*extr
 		if err := json.Unmarshal(toolUse.Input, &result); err != nil {
 			return nil, err
 		}
-		if result.ReferenceNumber == "" {
+		// A missing reference number on an otherwise-valid receipt is worth
+		// retrying (likely a misread); on an image that already fails the
+		// QRIS/Danamon/MYR checks it's expected, and retrying would just
+		// delay a rejection that's certain anyway.
+		if result.ReferenceNumber == "" && result.rejectReason() == "" {
 			return nil, errExtractionIncomplete
 		}
 		return &result, nil
@@ -163,6 +214,15 @@ func (s *Service) processOCR(uuidStr string) {
 	}
 	if result == nil {
 		s.finishOCR(row, before, StatusRejected, rejectReasonFailedRead)
+		return
+	}
+
+	if reason := result.rejectReason(); reason != "" {
+		row.MerchantName = nilIfEmpty(result.MerchantName)
+		row.ReferenceNumber = nilIfEmpty(result.ReferenceNumber)
+		row.NominalAsing = result.NominalAsing
+		row.NominalRupiah = result.NominalIDR
+		s.finishOCR(row, before, StatusRejected, reason)
 		return
 	}
 

@@ -40,9 +40,9 @@ type QrisCrossBorder struct {
 	// Service.toResponse flattens the fields the frontend actually needs.
 	Peserta *users.User `gorm:"foreignKey:PesertaID" json:"-"`
 	Image   string      `gorm:"type:varchar(255);not null" json:"image"`
-	// NominalAsing is generic (any foreign currency the screenshot shows,
-	// e.g. THB or MYR) — no separate currency-code column, matching the
-	// scope of what was asked. NominalRupiah is always the IDR side.
+	// NominalAsing is always MYR — the OCR job rejects any receipt whose
+	// foreign currency isn't MYR (see extraction.rejectReason), so there's no
+	// currency-code column. NominalRupiah is always the IDR side.
 	NominalAsing    float64 `gorm:"type:decimal(15,2);not null;default:0" json:"nominal_asing"`
 	NominalRupiah   float64 `gorm:"type:decimal(15,2);not null;default:0" json:"nominal_rupiah"`
 	MerchantName    *string `gorm:"type:varchar(255)" json:"merchant_name"`
