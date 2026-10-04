@@ -5,11 +5,15 @@ import { scanQr } from '../api/qrGate'
 
 const READER_ID = 'qr-gate-scanner-reader'
 
-function ScannerModal({ onClose }) {
+function ScannerModal({ onClose, onScanned, onViewPoints }) {
   const scannerRef = useRef(null)
   const busyRef = useRef(false)
   const [status, setStatus] = useState('scanning') // scanning | success | error
   const [message, setMessage] = useState('')
+  // Kept in a ref so the scanner effect (mount-only) always calls the
+  // latest callback without restarting the camera on every parent render.
+  const onScannedRef = useRef(onScanned)
+  onScannedRef.current = onScanned
 
   useEffect(() => {
     const scanner = new Html5Qrcode(READER_ID)
@@ -35,6 +39,7 @@ function ScannerModal({ onClose }) {
             } else {
               setMessage(`+${res.data.points_awarded} poin — ${res.data.gate_name}`)
             }
+            onScannedRef.current?.()
           })
           .catch((err) => {
             setStatus('error')
@@ -124,10 +129,10 @@ function ScannerModal({ onClose }) {
           <div className="shrink-0 border-t border-surface-border bg-white px-6 py-4">
             <button
               type="button"
-              onClick={handleScanAgain}
+              onClick={status === 'success' ? onViewPoints : handleScanAgain}
               className="w-full rounded-lg bg-gradient-to-r from-gold-light via-gold to-gold-dark py-3 text-sm font-bold uppercase tracking-wide text-navy-dark shadow-md transition hover:opacity-90"
             >
-              Scan Lagi
+              {status === 'success' ? 'Lihat Point Saya' : 'Scan Lagi'}
             </button>
           </div>
         )}

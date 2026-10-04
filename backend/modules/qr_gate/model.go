@@ -57,3 +57,16 @@ func (s *QrGateScan) BeforeCreate(tx *gorm.DB) error {
 	}
 	return nil
 }
+
+// ManualPoint is an admin-granted point adjustment for a participant, outside
+// any QR gate (e.g. a quiz prize). Counted alongside qr_gate_scans everywhere
+// points are totaled — leaderboard, peserta list, point history. Points may
+// be negative so an admin can correct a mistake without deleting history.
+type ManualPoint struct {
+	utils.AuditModel
+	UserID uint64 `gorm:"not null;index" json:"-"`
+	Name   string `gorm:"type:varchar(255);not null" json:"name"`
+	Points int    `gorm:"not null" json:"points"`
+}
+
+func (ManualPoint) TableName() string { return "manual_points" }

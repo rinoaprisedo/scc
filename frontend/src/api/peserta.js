@@ -12,6 +12,13 @@ export const deletePeserta = (uuid) => client.delete(`/peserta/${uuid}`).then((r
 export const updatePesertaStatus = (uuid, status) => client.put(`/peserta/${uuid}/status`, { status }).then((r) => r.data)
 export const resetPesertaProfile = (uuid) => client.put(`/peserta/${uuid}/reset`).then((r) => r.data)
 export const getPesertaPointHistory = (uuid) => client.get(`/peserta/${uuid}/points`).then((r) => r.data)
+export const addPesertaManualPoint = (uuid, payload) => client.post(`/peserta/${uuid}/points`, payload).then((r) => r.data)
+export const checkinPesertaGate = (uuid, gateUuid) =>
+  client.post(`/peserta/${uuid}/checkin/${gateUuid}`).then((r) => r.data)
+export const deletePesertaScan = (uuid, scanUuid) =>
+  client.delete(`/peserta/${uuid}/scans/${scanUuid}`).then((r) => r.data)
+export const deletePesertaManualPoint = (uuid, pointUuid) =>
+  client.delete(`/peserta/${uuid}/points/${pointUuid}`).then((r) => r.data)
 export const uploadPesertaKtp = (uuid, formData) =>
   client.post(`/peserta/${uuid}/ktp`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data)
 export const uploadPesertaPassport = (uuid, formData) =>

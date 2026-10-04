@@ -21,10 +21,18 @@ client.interceptors.request.use((config) => {
   return config
 })
 
+// Login-free pages (the monitor leaderboard display) must keep polling
+// through a 401 from App's boot-time /auth/me or a transient 503, not get
+// bounced to /login or /maintenance.
+const NO_REDIRECT_PATHS = ['/leaderboard/display']
+
 client.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error.response?.status
+    if (NO_REDIRECT_PATHS.includes(window.location.pathname)) {
+      return Promise.reject(error)
+    }
     if (status === 401 && window.location.pathname !== '/login') {
       window.location.href = '/login'
     } else if (status === 503) {

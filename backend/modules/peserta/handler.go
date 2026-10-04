@@ -2,6 +2,7 @@ package peserta
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"baseadmin/backend/modules/activity_logs"
@@ -112,7 +113,139 @@ func (h *Handler) PointHistory(c *gin.Context) {
 		utils.Error(c, 500, "failed to fetch point history")
 		return
 	}
-	utils.Success(c, 200, "ok", gin.H{"scans": scans, "total_points": totalPoints})
+	gates, err := h.QrGateService.GateStatusForUser(user.ID)
+	if err != nil {
+		utils.Error(c, 500, "failed to fetch point history")
+		return
+	}
+	utils.Success(c, 200, "ok", gin.H{"scans": scans, "total_points": totalPoints, "gates": gates})
+}
+
+type manualPointRequest struct {
+	Name   string `json:"name" binding:"required"`
+	Points int    `json:"points" binding:"required"`
+}
+
+// AddManualPoint godoc
+// @Summary		Grant a peserta points manually (outside any QR gate)
+// @Tags			peserta
+// @Security		SessionCookie
+// @Param			uuid	path		string				true	"Peserta UUID"
+// @Param			body	body		manualPointRequest	true	"Point name and amount (non-zero, may be negative)"
+// @Success		201		{object}	utils.Response
+// @Failure		404		{object}	utils.Response
+// @Router			/peserta/{uuid}/points [post]
+func (h *Handler) AddManualPoint(c *gin.Context) {
+	var req manualPointRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.Error(c, 400, "nama point dan jumlah point (bukan 0) wajib diisi")
+		return
+	}
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" {
+		utils.Error(c, 400, "nama point wajib diisi")
+		return
+	}
+	user, err := h.Service.Get(c.Param("uuid"))
+	if err != nil {
+		utils.Error(c, 404, "peserta not found")
+		return
+	}
+	actorID := utils.CurrentUserID(c)
+	mp, err := h.QrGateService.AddManualPoint(user.ID, req.Name, req.Points, actorID)
+	if err != nil {
+		utils.Error(c, 500, "failed to add point")
+		return
+	}
+	activity_logs.LogActivity(actorID, activity_logs.ActionCreate, "manual_point", mp.UUID.String(), nil, gin.H{"peserta": user.UUID, "name": mp.Name, "points": mp.Points}, c.ClientIP(), c.Request.UserAgent())
+	utils.Success(c, 201, "point added", mp)
+}
+
+// CheckinGate godoc
+// @Summary		Manually check a peserta in to a QR gate (admin-side scan)
+// @Tags			peserta
+// @Security		SessionCookie
+// @Param			uuid		path		string	true	"Peserta UUID"
+// @Param			gateUuid	path		string	true	"QR gate UUID"
+// @Success		200			{object}	utils.Response
+// @Failure		404			{object}	utils.Response
+// @Failure		409			{object}	utils.Response
+// @Router			/peserta/{uuid}/checkin/{gateUuid} [post]
+func (h *Handler) CheckinGate(c *gin.Context) {
+	user, err := h.Service.Get(c.Param("uuid"))
+	if err != nil {
+		utils.Error(c, 404, "peserta not found")
+		return
+	}
+	result, err := h.QrGateService.Checkin(user.ID, c.Param("gateUuid"))
+	if err != nil {
+		switch err {
+		case qr_gate.ErrCodeNotFound:
+			utils.Error(c, 404, "QR gate tidak ditemukan")
+		case qr_gate.ErrAlreadyClaimed:
+			utils.Error(c, 409, "QR ini sudah digunakan peserta lain")
+		default:
+			utils.Error(c, 500, "failed to record check-in")
+		}
+		return
+	}
+	if result.AlreadyScanned {
+		utils.Error(c, 409, "Peserta sudah check-in di QR ini")
+		return
+	}
+	actorID := utils.CurrentUserID(c)
+	activity_logs.LogActivity(actorID, activity_logs.ActionCreate, "qr_gate_checkin", result.ScanUUID.String(), nil, gin.H{"peserta": user.UUID, "gate": result.Gate.Name, "points": result.PointsAwarded}, c.ClientIP(), c.Request.UserAgent())
+	utils.Success(c, 200, "check-in recorded", gin.H{"gate_name": result.Gate.Name, "points_awarded": result.PointsAwarded})
+}
+
+// DeleteScan godoc
+// @Summary		Undo a peserta's QR gate scan/check-in so the gate can be checked in again
+// @Tags			peserta
+// @Security		SessionCookie
+// @Param			uuid		path		string	true	"Peserta UUID"
+// @Param			scanUuid	path		string	true	"Scan UUID"
+// @Success		200			{object}	utils.Response
+// @Failure		404			{object}	utils.Response
+// @Router			/peserta/{uuid}/scans/{scanUuid} [delete]
+func (h *Handler) DeleteScan(c *gin.Context) {
+	user, err := h.Service.Get(c.Param("uuid"))
+	if err != nil {
+		utils.Error(c, 404, "peserta not found")
+		return
+	}
+	scan, err := h.QrGateService.DeleteScan(user.ID, c.Param("scanUuid"))
+	if err != nil {
+		utils.Error(c, 404, "scan not found")
+		return
+	}
+	actorID := utils.CurrentUserID(c)
+	activity_logs.LogActivity(actorID, activity_logs.ActionDelete, "qr_gate_scan", scan.UUID.String(), gin.H{"peserta": user.UUID, "gate": scan.QrGate.Name, "points": scan.PointsAwarded}, nil, c.ClientIP(), c.Request.UserAgent())
+	utils.Success(c, 200, "scan deleted", nil)
+}
+
+// DeleteManualPoint godoc
+// @Summary		Remove a manually granted point entry from a peserta
+// @Tags			peserta
+// @Security		SessionCookie
+// @Param			uuid		path		string	true	"Peserta UUID"
+// @Param			pointUuid	path		string	true	"Manual point UUID"
+// @Success		200			{object}	utils.Response
+// @Failure		404			{object}	utils.Response
+// @Router			/peserta/{uuid}/points/{pointUuid} [delete]
+func (h *Handler) DeleteManualPoint(c *gin.Context) {
+	user, err := h.Service.Get(c.Param("uuid"))
+	if err != nil {
+		utils.Error(c, 404, "peserta not found")
+		return
+	}
+	actorID := utils.CurrentUserID(c)
+	mp, err := h.QrGateService.DeleteManualPoint(user.ID, c.Param("pointUuid"), actorID)
+	if err != nil {
+		utils.Error(c, 404, "point not found")
+		return
+	}
+	activity_logs.LogActivity(actorID, activity_logs.ActionDelete, "manual_point", mp.UUID.String(), gin.H{"peserta": user.UUID, "name": mp.Name, "points": mp.Points}, nil, c.ClientIP(), c.Request.UserAgent())
+	utils.Success(c, 200, "point deleted", nil)
 }
 
 type profileRequest struct {

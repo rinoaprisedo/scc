@@ -5,6 +5,8 @@ import ProtectedRoute from './ProtectedRoute'
 
 import Login from '../pages/auth/Login'
 import Dashboard from '../pages/dashboard/Dashboard'
+import Leaderboard from '../pages/leaderboard/Leaderboard'
+import LeaderboardDisplay from '../pages/leaderboard/LeaderboardDisplay'
 import Users from '../pages/users/Users'
 import Peserta from '../pages/peserta/Peserta'
 import KotaAsal from '../pages/kota_asal/KotaAsal'
@@ -33,6 +35,7 @@ function AppRouter() {
       <Route path="/maintenance" element={<Maintenance />} />
       <Route path="/403" element={<Forbidden />} />
       <Route path="/404" element={<NotFound />} />
+      <Route path="/leaderboard/display" element={<LeaderboardDisplay />} />
 
       <Route
         element={
@@ -42,6 +45,14 @@ function AppRouter() {
         }
       >
         <Route path="/" element={<Dashboard />} />
+        <Route
+          path="/leaderboard"
+          element={
+            <ProtectedRoute menuKey="leaderboard">
+              <Leaderboard />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/users"
           element={

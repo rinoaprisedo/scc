@@ -38,6 +38,7 @@ func Run(db *gorm.DB) {
 		&activity_logs.ActivityLog{},
 		&qr_gate.QrGate{},
 		&qr_gate.QrGateScan{},
+		&qr_gate.ManualPoint{},
 		&qris_cross_border.QrisCrossBorder{},
 		&sliders.Slider{},
 	)

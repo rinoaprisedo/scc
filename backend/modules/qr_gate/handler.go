@@ -207,15 +207,51 @@ func (h *Handler) Scan(c *gin.Context) {
 }
 
 // Leaderboard godoc
-// @Summary		List the top participants ranked by total QR gate points
+// @Summary		Top participants by QR gate points, plus the caller's own rank
 // @Tags			qr-gate
 // @Security		SessionCookie
 // @Param			limit	query		int	false	"Number of entries to return (default 10, max 100)"
 // @Success		200		{object}	utils.Response
 // @Router			/qr-gate/leaderboard [get]
 func (h *Handler) Leaderboard(c *gin.Context) {
+	userID := utils.CurrentUserID(c)
+	if userID == nil {
+		utils.Error(c, 401, "unauthorized")
+		return
+	}
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
-	list, err := h.Service.Leaderboard(limit)
+	result, err := h.Service.MyLeaderboard(limit, *userID)
+	if err != nil {
+		utils.Error(c, 500, "failed to fetch leaderboard")
+		return
+	}
+	utils.Success(c, 200, "ok", result)
+}
+
+// PublicLeaderboard godoc
+// @Summary		Top participants by QR gate points (unauthenticated, for the monitor display)
+// @Tags			leaderboard
+// @Param			limit	query		int	false	"Number of entries to return (default 10, max 100)"
+// @Success		200		{object}	utils.Response
+// @Router			/leaderboard/public [get]
+func (h *Handler) PublicLeaderboard(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	list, err := h.Service.PublicLeaderboard(limit)
+	if err != nil {
+		utils.Error(c, 500, "failed to fetch leaderboard")
+		return
+	}
+	utils.Success(c, 200, "ok", list)
+}
+
+// AdminLeaderboard godoc
+// @Summary		Full participant leaderboard for the admin panel
+// @Tags			leaderboard
+// @Security		SessionCookie
+// @Success		200	{object}	utils.Response
+// @Router			/leaderboard [get]
+func (h *Handler) AdminLeaderboard(c *gin.Context) {
+	list, err := h.Service.AdminLeaderboard()
 	if err != nil {
 		utils.Error(c, 500, "failed to fetch leaderboard")
 		return

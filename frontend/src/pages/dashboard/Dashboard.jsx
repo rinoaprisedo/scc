@@ -96,9 +96,9 @@ function StockRow({ label, initialStock, remaining, maxRemaining, color }) {
   )
 }
 
-function ChartCard({ title, children }) {
+function ChartCard({ title, children, className = '' }) {
   return (
-    <div className="rounded-lg border border-surface-border bg-surface-card p-5 shadow-card">
+    <div className={`min-w-0 rounded-lg border border-surface-border bg-surface-card p-5 shadow-card ${className}`}>
       <h3 className="mb-4 text-sm font-semibold text-text-primary">{title}</h3>
       {children}
     </div>
@@ -151,6 +151,67 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {qrisStatus.map((row) => (
+          <StatTile
+            key={row.key}
+            icon={Banknote}
+            label={`Qris ${row.label}`}
+            value={row.count}
+            tone={qrisStatusVariant[row.key] || 'neutral'}
+          />
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <ChartCard title="Scan per QR Gate">
+          {(summary.qr_gates ?? []).length === 0 ? (
+            <EmptyState icon={QrCode} title="Belum ada QR gate" message="Buat QR gate di menu QR Gate untuk mulai melacak scan peserta." />
+          ) : (
+            <div className="space-y-4">
+              {summary.qr_gates.map((row, i) => (
+                <BarRow key={row.key} label={row.label} count={row.count} total={total} color={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
+              ))}
+            </div>
+          )}
+        </ChartCard>
+
+        <ChartCard title="20 Nominal Qris Cross Border Tertinggi (IDR)" className="lg:col-span-2">
+          <Table
+            columns={[
+              {
+                key: 'peserta_name',
+                label: 'Peserta',
+                render: (row) => (
+                  <div className="flex flex-col">
+                    <span>{row.peserta_name || '-'}</span>
+                    <span className="text-xs text-text-tertiary">{row.peserta_ktp_number || '-'}</span>
+                  </div>
+                ),
+              },
+              { key: 'merchant_name', label: 'Merchant', render: (row) => row.merchant_name || '-' },
+              {
+                key: 'nominal_asing',
+                label: 'Nominal (Asing)',
+                render: (row) => Number(row.nominal_asing).toLocaleString('id-ID', { minimumFractionDigits: 2 }),
+              },
+              {
+                key: 'nominal_rupiah',
+                label: 'Nominal (IDR)',
+                render: (row) => `Rp ${Number(row.nominal_rupiah).toLocaleString('id-ID')}`,
+              },
+              {
+                key: 'status',
+                label: 'Status',
+                render: (row) => <Badge variant={qrisStatusVariant[row.status] || 'neutral'}>{row.status}</Badge>,
+              },
+              { key: 'created_at', label: 'Created', render: (row) => format(new Date(row.created_at), 'PP p') },
+            ]}
+            data={qrisTop}
+          />
+        </ChartCard>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatTile icon={Users} label="Total Peserta" value={total} tone="primary" />
         <StatTile
@@ -167,18 +228,6 @@ function Dashboard() {
           sublabel={`${100 - loginPct}% dari total peserta`}
           tone="neutral"
         />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {qrisStatus.map((row) => (
-          <StatTile
-            key={row.key}
-            icon={Banknote}
-            label={`Qris ${row.label}`}
-            value={row.count}
-            tone={qrisStatusVariant[row.key] || 'neutral'}
-          />
-        ))}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -226,53 +275,7 @@ function Dashboard() {
           )}
         </ChartCard>
 
-        <ChartCard title="Scan per QR Gate">
-          {(summary.qr_gates ?? []).length === 0 ? (
-            <EmptyState icon={QrCode} title="Belum ada QR gate" message="Buat QR gate di menu QR Gate untuk mulai melacak scan peserta." />
-          ) : (
-            <div className="space-y-4">
-              {summary.qr_gates.map((row, i) => (
-                <BarRow key={row.key} label={row.label} count={row.count} total={total} color={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
-              ))}
-            </div>
-          )}
-        </ChartCard>
       </div>
-
-      <ChartCard title="20 Nominal Qris Cross Border Tertinggi (IDR)">
-        <Table
-          columns={[
-            {
-              key: 'peserta_name',
-              label: 'Peserta',
-              render: (row) => (
-                <div className="flex flex-col">
-                  <span>{row.peserta_name || '-'}</span>
-                  <span className="text-xs text-text-tertiary">{row.peserta_ktp_number || '-'}</span>
-                </div>
-              ),
-            },
-            { key: 'merchant_name', label: 'Merchant', render: (row) => row.merchant_name || '-' },
-            {
-              key: 'nominal_asing',
-              label: 'Nominal (Asing)',
-              render: (row) => Number(row.nominal_asing).toLocaleString('id-ID', { minimumFractionDigits: 2 }),
-            },
-            {
-              key: 'nominal_rupiah',
-              label: 'Nominal (IDR)',
-              render: (row) => `Rp ${Number(row.nominal_rupiah).toLocaleString('id-ID')}`,
-            },
-            {
-              key: 'status',
-              label: 'Status',
-              render: (row) => <Badge variant={qrisStatusVariant[row.status] || 'neutral'}>{row.status}</Badge>,
-            },
-            { key: 'created_at', label: 'Created', render: (row) => format(new Date(row.created_at), 'PP p') },
-          ]}
-          data={qrisTop}
-        />
-      </ChartCard>
     </div>
   )
 }

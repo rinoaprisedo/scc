@@ -2,6 +2,7 @@ package qris_cross_border
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"time"
 
@@ -11,21 +12,22 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-var exportColumns = []string{"Nama Peserta", "NIK", "Nominal (IDR)"}
+var exportColumns = []string{"Nama Peserta", "NIK", "Nominal (MYR)", "Nominal (IDR)"}
 
 // ExportExcel godoc
 // @Summary		Export QRIS cross border submissions as Excel
 // @Tags			qris-cross-border
 // @Security		SessionCookie
 // @Param			search			query	string	false	"Search by peserta name/NIK/merchant/no. referensi"
-// @Param			status			query	string	false	"Filter by status"
 // @Param			trx_status		query	string	false	"Filter by transaction status"
 // @Param			peserta_uuid	query	string	false	"Filter by peserta"
 // @Produce		application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
 // @Success		200
 // @Router			/qris-cross-border/export/excel [get]
 func (h *Handler) ExportExcel(c *gin.Context) {
-	list, err := h.Service.ListAll(c.Query("search"), c.Query("status"), c.Query("trx_status"), c.Query("peserta_uuid"))
+	// Export is a payout/recap sheet, so it's always approved-only regardless
+	// of whatever status filter the list page currently has applied.
+	list, err := h.Service.ListAll(c.Query("search"), StatusApproved, c.Query("trx_status"), c.Query("peserta_uuid"))
 	if err != nil {
 		utils.Error(c, 500, "failed to export qris cross border")
 		return
@@ -35,6 +37,14 @@ func (h *Handler) ExportExcel(c *gin.Context) {
 	defer f.Close()
 	const sheet = "Qris Cross Border"
 	f.SetSheetName("Sheet1", sheet)
+
+	// Display-only currency formats — cells stay numeric so the sheet can
+	// still be summed/sorted. MYR only shows decimals when there are any, so
+	// whole amounts read "RM 1,000" rather than "RM 1,000.00".
+	idrFmt, myrFmt, myrDecFmt := `"Rp "#,##0`, `"RM "#,##0`, `"RM "#,##0.00`
+	idrStyle, _ := f.NewStyle(&excelize.Style{CustomNumFmt: &idrFmt})
+	myrStyle, _ := f.NewStyle(&excelize.Style{CustomNumFmt: &myrFmt})
+	myrDecStyle, _ := f.NewStyle(&excelize.Style{CustomNumFmt: &myrDecFmt})
 
 	for i, col := range exportColumns {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
@@ -51,10 +61,18 @@ func (h *Handler) ExportExcel(c *gin.Context) {
 		}
 		nameCell, _ := excelize.CoordinatesToCellName(1, r)
 		nikCell, _ := excelize.CoordinatesToCellName(2, r)
-		nominalCell, _ := excelize.CoordinatesToCellName(3, r)
+		myrCell, _ := excelize.CoordinatesToCellName(3, r)
+		idrCell, _ := excelize.CoordinatesToCellName(4, r)
 		f.SetCellValue(sheet, nameCell, name)
 		f.SetCellValue(sheet, nikCell, nik)
-		f.SetCellValue(sheet, nominalCell, row.NominalRupiah)
+		f.SetCellValue(sheet, myrCell, row.NominalAsing)
+		f.SetCellValue(sheet, idrCell, row.NominalRupiah)
+		if row.NominalAsing == math.Trunc(row.NominalAsing) {
+			f.SetCellStyle(sheet, myrCell, myrCell, myrStyle)
+		} else {
+			f.SetCellStyle(sheet, myrCell, myrCell, myrDecStyle)
+		}
+		f.SetCellStyle(sheet, idrCell, idrCell, idrStyle)
 	}
 
 	filename := fmt.Sprintf("qris_cross_border_%s.xlsx", time.Now().Format("20060102_150405"))

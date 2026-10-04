@@ -91,17 +91,47 @@ function isMenuEnabled(publicSettings, settingKey) {
   return publicSettings[settingKey] !== 'false'
 }
 
+const rankBadgeClass = (rank) => {
+  if (rank === 1) return 'bg-gold text-navy-dark'
+  if (rank === 2) return 'bg-white/70 text-navy-dark'
+  if (rank === 3) return 'bg-amber-700 text-white'
+  return 'bg-white/10 text-white/70'
+}
+
+function LeaderboardRow({ entry, isMe }) {
+  return (
+    <li
+      className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2 ${
+        isMe ? 'bg-gold/15 ring-1 ring-gold/70' : 'bg-navy-light/60'
+      }`}
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        <span
+          className={`flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full px-1.5 text-xs font-bold ${rankBadgeClass(entry.rank)}`}
+        >
+          {entry.rank}
+        </span>
+        <span className="truncate text-sm font-medium text-white">{entry.name}</span>
+        {isMe && (
+          <span className="shrink-0 rounded-full bg-gold px-2 py-0.5 text-[10px] font-bold uppercase text-navy-dark">
+            Kamu
+          </span>
+        )}
+      </div>
+      <span className="shrink-0 text-sm font-bold text-gold">{entry.points} Poin</span>
+    </li>
+  )
+}
+
 // Ranked list of participants by total QR gate points — rendered in place
 // of the slider carousel in both layout slots (desktop TopRankCard box +
 // mobile banner) whenever the admin's "Leaderboard" website-menu toggle is
-// on (see settings.menu_leaderboard_enabled).
-function LeaderboardCard({ entries, className = '' }) {
-  const rankBadgeClass = (rank) => {
-    if (rank === 1) return 'bg-gold text-navy-dark'
-    if (rank === 2) return 'bg-white/70 text-navy-dark'
-    if (rank === 3) return 'bg-amber-700 text-white'
-    return 'bg-white/10 text-white/70'
-  }
+// on (see settings.menu_leaderboard_enabled). The logged-in participant is
+// highlighted in the list, or pinned below it with their rank when they
+// fall outside the top entries.
+function LeaderboardCard({ entries, me, className = '' }) {
+  const lastListedRank = entries.length > 0 ? entries[entries.length - 1].rank : 0
+  const meOutsideList = me && me.rank > lastListedRank
 
   return (
     <div className={`flex flex-col gap-3 rounded-2xl border-2 border-gold-light/60 bg-navy p-5 ${className}`}>
@@ -114,21 +144,19 @@ function LeaderboardCard({ entries, className = '' }) {
       ) : (
         <ol className="flex flex-col gap-2">
           {entries.map((entry) => (
-            <li
-              key={entry.uuid}
-              className="flex items-center justify-between gap-3 rounded-xl bg-navy-light/60 px-3 py-2"
-            >
-              <div className="flex min-w-0 items-center gap-3">
-                <span
-                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${rankBadgeClass(entry.rank)}`}
-                >
-                  {entry.rank}
-                </span>
-                <span className="truncate text-sm font-medium text-white">{entry.name}</span>
-              </div>
-              <span className="shrink-0 text-sm font-bold text-gold">{entry.points} Poin</span>
-            </li>
+            <LeaderboardRow key={entry.rank} entry={entry} isMe={me?.rank === entry.rank} />
           ))}
+          {meOutsideList && (
+            <>
+              <li aria-hidden className="text-center text-sm leading-none tracking-[0.3em] text-white/40">
+                ⋮
+              </li>
+              <LeaderboardRow entry={me} isMe />
+              <li className="text-center text-xs text-white/60">
+                Kamu berada di peringkat <span className="font-bold text-gold">#{me.rank}</span>
+              </li>
+            </>
+          )}
         </ol>
       )}
     </div>
@@ -158,10 +186,12 @@ function Dashboard() {
   const [qrisOpen, setQrisOpen] = useState(false)
   const [totalPoints, setTotalPoints] = useState(0)
   const [sliders, setSliders] = useState([])
-  const [leaderboard, setLeaderboard] = useState([])
+  const [leaderboard, setLeaderboard] = useState({ entries: [], me: null })
 
   const refreshUser = () => getMe().then((res) => setUser(res.data))
   const refreshPoints = () => getMyScans().then((res) => setTotalPoints(res.data?.total_points || 0))
+  const refreshLeaderboard = () =>
+    getLeaderboard(10).then((res) => setLeaderboard({ entries: res.data?.entries || [], me: res.data?.me || null }))
 
   useEffect(() => {
     refreshUser()
@@ -174,9 +204,7 @@ function Dashboard() {
     getActiveSliders()
       .then((res) => setSliders(res.data || []))
       .catch(() => {})
-    getLeaderboard(10)
-      .then((res) => setLeaderboard(res.data || []))
-      .catch(() => {})
+    refreshLeaderboard().catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate])
 
@@ -251,7 +279,7 @@ function Dashboard() {
         <div className="relative mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-6 pb-10 sm:px-10 lg:flex-row">
           <div className="order-last hidden w-full md:block lg:order-none lg:w-[34rem] lg:shrink-0">
             {leaderboardEnabled ? (
-              <LeaderboardCard entries={leaderboard} />
+              <LeaderboardCard entries={leaderboard.entries} me={leaderboard.me} />
             ) : (
               <SliderCard
                 sliders={desktopSliders}
@@ -264,7 +292,7 @@ function Dashboard() {
 
           <div className="flex flex-1 flex-col gap-6">
             {leaderboardEnabled ? (
-              <LeaderboardCard entries={leaderboard} className="shadow-lg md:hidden" />
+              <LeaderboardCard entries={leaderboard.entries} me={leaderboard.me} className="shadow-lg md:hidden" />
             ) : (
               <SliderCard
                 sliders={mobileSliders}
@@ -357,25 +385,21 @@ function Dashboard() {
       )}
 
       {stage === 'done' && (
-        <div className="fixed bottom-5 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-1.5 md:hidden">
-          <button
-            type="button"
-            aria-label="Scan QR"
-            onClick={() => {
-              if (!isMenuEnabled(publicSettings, 'menu_scanner_qr_enabled')) {
-                setAlertMessage('Maaf, Fitur ini belum tersedia')
-                return
-              }
-              setScannerOpen(true)
-            }}
-            className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-gold-light via-gold to-gold-dark text-navy-dark shadow-xl transition hover:opacity-90"
-          >
-            <QrCode size={26} />
-          </button>
-          <span className="rounded-full bg-navy-dark/80 px-2.5 py-0.5 text-[11px] font-bold text-white shadow">
-            Scan QR
-          </span>
-        </div>
+        <button
+          type="button"
+          aria-label="Scan QR"
+          onClick={() => {
+            if (!isMenuEnabled(publicSettings, 'menu_scanner_qr_enabled')) {
+              setAlertMessage('Maaf, Fitur ini belum tersedia')
+              return
+            }
+            setScannerOpen(true)
+          }}
+          className="fixed bottom-5 left-1/2 z-40 flex h-20 w-20 -translate-x-1/2 flex-col items-center justify-center gap-0.5 rounded-full bg-gradient-to-br from-gold-light via-gold to-gold-dark text-navy-dark shadow-xl ring-4 ring-navy-dark/40 transition hover:opacity-90 active:scale-95 md:hidden"
+        >
+          <QrCode size={28} strokeWidth={2} />
+          <span className="text-[10px] font-extrabold uppercase leading-none tracking-wide">Scan QR</span>
+        </button>
       )}
 
       <footer className="relative mt-auto pt-2 sm:pt-4">
@@ -398,9 +422,14 @@ function Dashboard() {
 
       {scannerOpen && (
         <ScannerModal
-          onClose={() => {
-            setScannerOpen(false)
+          onClose={() => setScannerOpen(false)}
+          onScanned={() => {
             refreshPoints().catch(() => {})
+            refreshLeaderboard().catch(() => {})
+          }}
+          onViewPoints={() => {
+            setScannerOpen(false)
+            setHistoryOpen(true)
           }}
         />
       )}

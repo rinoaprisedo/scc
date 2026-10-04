@@ -119,6 +119,7 @@ func seedMenus(db *gorm.DB) []uint64 {
 			Section: menu_sections.MenuSection{Name: "Dashboard", Icon: "LayoutDashboard", Order: 1},
 			Menus: []menuDef{
 				{Name: "Dashboard", Icon: "LayoutDashboard", Path: "/"},
+				{Name: "Leaderboard", Icon: "Trophy", Path: "leaderboard"},
 			},
 		},
 		{

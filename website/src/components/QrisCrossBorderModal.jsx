@@ -18,15 +18,14 @@ const STATUS_LABEL = {
   rejected: 'Ditolak',
 }
 
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
+
+// "22 Sep. 12:12" — compact enough to share a line with the status badge.
 function formatDate(value) {
   if (!value) return null
-  return new Date(value).toLocaleString('id-ID', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  const d = new Date(value)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}. ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 const PAGE_LIMIT = 5
@@ -166,20 +165,23 @@ function QrisCrossBorderModal({ onClose }) {
                   </button>
 
                   <div className="min-w-0 flex-1">
-                    {(row.nominal_rupiah > 0 || row.status !== 'rejected') && (
-                      <p className="text-sm font-semibold text-navy">
-                        {row.nominal_rupiah > 0 ? `Rp ${Number(row.nominal_rupiah).toLocaleString('id-ID')}` : 'Menunggu Approval'}
+                    {row.nominal_rupiah > 0 && (
+                      <p className="mb-1 truncate text-sm font-semibold text-navy">
+                        Rp {Number(row.nominal_rupiah).toLocaleString('id-ID')}
                       </p>
                     )}
-                    <p className="text-xs text-text-secondary">{formatDate(row.created_at)}</p>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span
+                        className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS_STYLE[row.status] || 'bg-surface-bg text-text-secondary'}`}
+                      >
+                        {STATUS_LABEL[row.status] || row.status}
+                      </span>
+                      <span className="whitespace-nowrap text-xs text-text-secondary">{formatDate(row.created_at)}</span>
+                    </div>
                     {row.status === 'rejected' && row.reject_reason && (
-                      <p className="mt-0.5 text-xs text-red-600">{row.reject_reason}</p>
+                      <p className="mt-1 text-xs text-red-600">{row.reject_reason}</p>
                     )}
                   </div>
-
-                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLE[row.status] || 'bg-surface-bg text-text-secondary'}`}>
-                    {STATUS_LABEL[row.status] || row.status}
-                  </span>
 
                   {confirmDelete === row.uuid ? (
                     <div className="flex shrink-0 items-center gap-1.5">

@@ -44,7 +44,7 @@ func (r *Repository) CountByBlazerSize(size string) (int64, error) {
 }
 
 // UserWithPoints is what List returns — a peserta plus their total QR gate
-// points, summed from qr_gate_scans. Referenced by table name rather than
+// points, summed from qr_gate_scans plus admin-granted manual_points. Referenced by table name rather than
 // importing the qr_gate package, to avoid a cross-module Go dependency for
 // what's just a read-only reporting join.
 type UserWithPoints struct {
@@ -69,7 +69,7 @@ func (r *Repository) List(p utils.Pagination) ([]UserWithPoints, int64, error) {
 	}
 
 	var list []UserWithPoints
-	err := q.Select("users.*, (SELECT COALESCE(SUM(points_awarded), 0) FROM qr_gate_scans WHERE qr_gate_scans.user_id = users.id) AS total_points").
+	err := q.Select("users.*, (SELECT COALESCE(SUM(points_awarded), 0) FROM qr_gate_scans WHERE qr_gate_scans.user_id = users.id) + (SELECT COALESCE(SUM(points), 0) FROM manual_points WHERE manual_points.user_id = users.id AND manual_points.deleted_at IS NULL) AS total_points").
 		Order("users." + p.SortBy + " " + p.SortDir).Offset(p.Offset).Limit(p.Limit).Find(&list).Error
 	return list, total, err
 }
