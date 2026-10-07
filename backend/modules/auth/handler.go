@@ -187,6 +187,7 @@ func (h *Handler) profileResponse(u *users.User) gin.H {
 		"passport_expiry":      u.PassportExpiry,
 		"passport_file":        u.PassportFile,
 		"blazer_size":          u.BlazerSize,
+		"nomor_meja":           u.NomorMeja,
 		"attendance_status":    u.AttendanceStatus,
 		"data_consent_at":      u.DataConsentAt,
 		"passport_single_name": u.PassportSingleName,

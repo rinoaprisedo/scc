@@ -119,7 +119,7 @@ function LeaderboardDisplay() {
         <div />
         <div className="flex items-center gap-[1vw]">
           <Trophy className="h-[5vh] w-[5vh] text-primary" />
-          <h1 className="text-[5vh] font-black uppercase tracking-[0.15em]">Leaderboard</h1>
+          <h1 className="text-[5vh] font-black uppercase tracking-[0.15em]">LEADERBOARD SCC 2026</h1>
         </div>
         <div className="flex items-center justify-end gap-[1vw] text-[2.2vh] font-medium text-white/70">
           <span className="relative flex h-[1.4vh] w-[1.4vh]">

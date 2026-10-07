@@ -14,6 +14,7 @@ import {
   History,
   Newspaper,
   QrCode,
+  Armchair,
 } from 'lucide-react'
 import { getMe, logout } from '../api/auth'
 import { getPublicSettings } from '../api/settings'
@@ -400,6 +401,16 @@ function Dashboard() {
                 )
               })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {stage === 'done' && user?.nomor_meja && (
+        <div className="fixed bottom-[7.25rem] left-1/2 z-40 -translate-x-1/2 md:hidden">
+          <div className="flex items-center gap-2 whitespace-nowrap rounded-full border border-gold bg-navy-dark/95 px-4 py-2 shadow-[0_0_18px_rgba(212,175,55,0.55)] ring-2 ring-gold/30 backdrop-blur">
+            <Armchair size={18} strokeWidth={2} className="shrink-0 text-gold" />
+            <span className="text-sm font-semibold text-white/80">Nomor Meja:</span>
+            <span className="text-base font-extrabold text-gold">{user.nomor_meja}</span>
           </div>
         </div>
       )}
