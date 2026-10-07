@@ -11,7 +11,7 @@ import DownloadProgressModal from '../../components/ui/DownloadProgressModal'
 import PesertaFormModal from './PesertaFormModal'
 import PesertaDetailModal from './PesertaDetailModal'
 import PesertaPointHistoryModal from './PesertaPointHistoryModal'
-import PesertaImportModal from './PesertaImportModal'
+import PesertaImportModal, { IMPORT_FIELDS, isFieldLocked } from './PesertaImportModal'
 import {
   getPeserta,
   createPeserta,
@@ -50,7 +50,11 @@ function Peserta() {
   const [viewing, setViewing] = useState(null)
   const [viewingPoints, setViewingPoints] = useState(null)
   const [importOpen, setImportOpen] = useState(false)
-  const [importPhase, setImportPhase] = useState('validating') // 'validating' | 'preview' | 'importing' | 'done'
+  const [importPhase, setImportPhase] = useState('options') // 'options' | 'validating' | 'preview' | 'importing' | 'done'
+  // Mode/field choices persist across imports in this page session, so a
+  // repeated partial-update pass doesn't need re-ticking every time.
+  const [importMode, setImportMode] = useState('upsert')
+  const [importFields, setImportFields] = useState(() => IMPORT_FIELDS.map((f) => f.key))
   const [importPreview, setImportPreview] = useState(null)
   const [importResult, setImportResult] = useState(null)
   const [importFile, setImportFile] = useState(null)
@@ -121,12 +125,17 @@ function Peserta() {
   // that point too (DB state can shift between preview and confirm), so
   // importMutation's onError still has to handle a fresh batch of row
   // errors, not just a hard failure.
+  const buildImportForm = (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('mode', importMode)
+    const fields = IMPORT_FIELDS.filter((f) => isFieldLocked(importMode, f.key) || importFields.includes(f.key))
+    formData.append('fields', fields.map((f) => f.key).join(','))
+    return formData
+  }
+
   const validateMutation = useMutation({
-    mutationFn: (file) => {
-      const formData = new FormData()
-      formData.append('file', file)
-      return validatePesertaImport(formData)
-    },
+    mutationFn: (file) => validatePesertaImport(buildImportForm(file)),
     onSuccess: (res) => {
       setImportPreview(res.data)
       setImportPhase('preview')
@@ -138,11 +147,7 @@ function Peserta() {
   })
 
   const importMutation = useMutation({
-    mutationFn: (file) => {
-      const formData = new FormData()
-      formData.append('file', file)
-      return importPesertaExcel(formData)
-    },
+    mutationFn: (file) => importPesertaExcel(buildImportForm(file)),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['peserta'] })
       setImportResult(res.data)
@@ -167,9 +172,14 @@ function Peserta() {
     if (!file) return
     setImportFile(file)
     setImportPreview(null)
-    setImportPhase('validating')
+    setImportPhase('options')
     setImportOpen(true)
-    validateMutation.mutate(file)
+  }
+
+  const runImportValidation = () => {
+    setImportPreview(null)
+    setImportPhase('validating')
+    validateMutation.mutate(importFile)
   }
 
   const confirmImport = () => {
@@ -403,6 +413,13 @@ function Peserta() {
         preview={importPreview}
         importResult={importResult}
         onConfirm={confirmImport}
+        fileName={importFile?.name}
+        mode={importMode}
+        onModeChange={setImportMode}
+        fields={importFields}
+        onFieldsChange={setImportFields}
+        onValidate={runImportValidation}
+        onBack={() => setImportPhase('options')}
       />
 
       <PesertaFormModal

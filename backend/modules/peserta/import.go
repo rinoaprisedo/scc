@@ -89,6 +89,70 @@ var importDigitsRegex = regexp.MustCompile(`^[0-9]+$`)
 // with a passport number instead of a KTP, so it must accept letters too.
 var importNIKRegex = regexp.MustCompile(`^[a-zA-Z0-9]+$`)
 
+// Import modes — which rows of the sheet are acted on, keyed by whether the
+// row's NIK already belongs to a peserta. Rows the mode doesn't cover are
+// skipped (counted, not errors) so one exported file can be reused for
+// either a pure top-up or a pure correction pass.
+const (
+	ImportModeInsert = "insert"
+	ImportModeUpdate = "update"
+	ImportModeUpsert = "upsert"
+)
+
+// ImportOptions narrows what an import writes: Mode picks which rows apply,
+// Fields which columns are read at all. An unselected column is ignored as
+// if it weren't in the sheet — not validated, not written — so a file can
+// carry stale data in other columns without clobbering them. NIK is never
+// in Fields: it's the match key and always read.
+type ImportOptions struct {
+	Mode   string
+	Fields map[string]bool
+}
+
+// ParseImportOptions builds ImportOptions from the multipart form values.
+// Both blank means the pre-options behavior (upsert, every column), so an
+// older client keeps working unchanged.
+func ParseImportOptions(mode, fields string) (ImportOptions, error) {
+	mode = strings.TrimSpace(mode)
+	if mode == "" {
+		mode = ImportModeUpsert
+	}
+	if mode != ImportModeInsert && mode != ImportModeUpdate && mode != ImportModeUpsert {
+		return ImportOptions{}, errors.New("mode must be one of: insert, update, upsert")
+	}
+
+	known := make(map[string]bool, len(importColumnDefs))
+	for _, c := range importColumnDefs {
+		if c.Field != "nik" {
+			known[c.Field] = true
+		}
+	}
+	selected := map[string]bool{}
+	if strings.TrimSpace(fields) == "" {
+		selected = known
+	} else {
+		for _, f := range strings.Split(fields, ",") {
+			f = strings.TrimSpace(f)
+			if f == "" || f == "nik" {
+				continue
+			}
+			if !known[f] {
+				return ImportOptions{}, fmt.Errorf("unknown import field: %s", f)
+			}
+			selected[f] = true
+		}
+	}
+	// A newly created peserta can't exist without a name, so any mode that
+	// creates rows always reads that column regardless of the checkboxes.
+	if mode != ImportModeUpdate {
+		selected["name"] = true
+	}
+	if len(selected) == 0 {
+		return ImportOptions{}, errors.New("select at least one field to import")
+	}
+	return ImportOptions{Mode: mode, Fields: selected}, nil
+}
+
 func containsOptionFold(options []string, v string) bool {
 	for _, o := range options {
 		if strings.EqualFold(o, v) {
@@ -109,15 +173,18 @@ type ImportRowError struct {
 // real import so the admin can fix the file first; nothing is written to
 // the database to produce this.
 type ImportPreview struct {
-	TotalRows int              `json:"total_rows"`
-	Valid     int              `json:"valid"`
+	TotalRows int `json:"total_rows"`
+	Valid     int `json:"valid"`
 	// ToCreate/ToUpdate split Valid by whether the row's NIK matches an
 	// existing peserta (see prepareImportRows) — shown in the admin
 	// frontend's preview step so it's clear the import isn't purely
 	// additive.
-	ToCreate int              `json:"to_create"`
-	ToUpdate int              `json:"to_update"`
-	Errors   []ImportRowError `json:"errors"`
+	ToCreate int `json:"to_create"`
+	ToUpdate int `json:"to_update"`
+	// ToSkip counts rows the chosen mode doesn't apply to (an existing NIK
+	// under insert, an unknown one under update).
+	ToSkip int              `json:"to_skip"`
+	Errors []ImportRowError `json:"errors"`
 }
 
 // ImportResult is the real import's success response — every row in the
@@ -126,6 +193,7 @@ type ImportPreview struct {
 type ImportResult struct {
 	Created int `json:"created"`
 	Updated int `json:"updated"`
+	Skipped int `json:"skipped"`
 }
 
 // preparedRow is one fully-validated, ready-to-insert-or-update row.
@@ -175,11 +243,11 @@ func allBlank(values map[string]string) bool {
 // confirm). A row that fails validation is recorded in rowErrors and
 // otherwise skipped; totalRows counts every non-blank data row seen,
 // valid or not.
-func (s *Service) prepareImportRows(f *excelize.File) (prepared []preparedRow, rowErrors []ImportRowError, totalRows int, err error) {
+func (s *Service) prepareImportRows(f *excelize.File, opts ImportOptions) (prepared []preparedRow, rowErrors []ImportRowError, totalRows, skipped int, err error) {
 	sheet := f.GetSheetName(0)
 	rows, err := f.GetRows(sheet)
 	if err != nil || len(rows) == 0 {
-		return nil, nil, 0, errors.New("sheet is empty")
+		return nil, nil, 0, 0, errors.New("sheet is empty")
 	}
 
 	// rowErrors starts as an empty (non-nil) slice rather than the zero-value
@@ -197,11 +265,11 @@ func (s *Service) prepareImportRows(f *excelize.File) (prepared []preparedRow, r
 
 	roleID, err := s.repo.PesertaRoleID()
 	if err != nil {
-		return nil, nil, 0, err
+		return nil, nil, 0, 0, err
 	}
 	hashedDefault, err := bcrypt.GenerateFromPassword([]byte(defaultImportPassword), 12)
 	if err != nil {
-		return nil, nil, 0, err
+		return nil, nil, 0, 0, err
 	}
 
 	seenNIK := map[string]int{}
@@ -220,8 +288,14 @@ func (s *Service) prepareImportRows(f *excelize.File) (prepared []preparedRow, r
 		}
 		totalRows++
 
-		if values["name"] == "" || values["nik"] == "" {
-			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Name and NIK are required"})
+		for field := range values {
+			if field != "nik" && !opts.Fields[field] {
+				delete(values, field)
+			}
+		}
+
+		if values["nik"] == "" {
+			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "NIK is required"})
 			continue
 		}
 
@@ -238,9 +312,19 @@ func (s *Service) prepareImportRows(f *excelize.File) (prepared []preparedRow, r
 		// rejection — see mergeStr and the user-construction branch below.
 		existing, err := s.repo.FindByNIK(nik)
 		if err != nil {
-			return nil, nil, 0, err
+			return nil, nil, 0, 0, err
 		}
 		isUpdate := existing != nil
+
+		if (isUpdate && opts.Mode == ImportModeInsert) || (!isUpdate && opts.Mode == ImportModeUpdate) {
+			seenNIK[nik] = rowNum
+			skipped++
+			continue
+		}
+		if !isUpdate && values["name"] == "" {
+			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Name is required for a new peserta"})
+			continue
+		}
 
 		email := values["email"]
 		if email != "" && !importEmailRegex.MatchString(email) {
@@ -269,7 +353,7 @@ func (s *Service) prepareImportRows(f *excelize.File) (prepared []preparedRow, r
 			emailConflict, err = s.repo.EmailExists(email)
 		}
 		if err != nil {
-			return nil, nil, 0, err
+			return nil, nil, 0, 0, err
 		}
 		if emailConflict {
 			rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Email is already registered"})
@@ -328,7 +412,7 @@ func (s *Service) prepareImportRows(f *excelize.File) (prepared []preparedRow, r
 		if values["origin_city"] != "" {
 			cityID, err = s.repo.FindCityIDByName(values["origin_city"])
 			if err != nil {
-				return nil, nil, 0, err
+				return nil, nil, 0, 0, err
 			}
 			if cityID == nil {
 				rowErrors = append(rowErrors, ImportRowError{Row: rowNum, Message: "Kota Asal must match one of the dropdown options"})
@@ -343,7 +427,7 @@ func (s *Service) prepareImportRows(f *excelize.File) (prepared []preparedRow, r
 		if values["nearest_airport"] != "" {
 			airportID, err = s.repo.FindAirportIDByName(values["nearest_airport"])
 			if err != nil {
-				return nil, nil, 0, err
+				return nil, nil, 0, 0, err
 			}
 			if airportID == nil {
 				newAirportName = values["nearest_airport"]
@@ -362,7 +446,9 @@ func (s *Service) prepareImportRows(f *excelize.File) (prepared []preparedRow, r
 			// files, created_at/created_by, ...) is carried through as-is —
 			// only the fields this sheet actually supplies get overwritten.
 			user = *existing
-			user.Name = values["name"]
+			if values["name"] != "" {
+				user.Name = values["name"]
+			}
 			user.Email = email
 			user.Title = mergeStr(existing.Title, values["title"], true)
 			user.FirstName = mergeStr(existing.FirstName, values["first_name"], true)
@@ -417,20 +503,20 @@ func (s *Service) prepareImportRows(f *excelize.File) (prepared []preparedRow, r
 		prepared = append(prepared, preparedRow{RowNum: rowNum, User: user, NewAirportName: newAirportName, IsUpdate: isUpdate})
 	}
 
-	return prepared, rowErrors, totalRows, nil
+	return prepared, rowErrors, totalRows, skipped, nil
 }
 
 // ValidateImportExcel is the dry-run preview behind the admin frontend's
 // "verify before import" step — parses and validates the file exactly like
 // ImportExcel would, but never opens a transaction or writes anything.
-func (s *Service) ValidateImportExcel(file multipart.File) (*ImportPreview, error) {
+func (s *Service) ValidateImportExcel(file multipart.File, opts ImportOptions) (*ImportPreview, error) {
 	f, err := excelize.OpenReader(file)
 	if err != nil {
 		return nil, errors.New("invalid Excel file")
 	}
 	defer f.Close()
 
-	prepared, rowErrors, totalRows, err := s.prepareImportRows(f)
+	prepared, rowErrors, totalRows, skipped, err := s.prepareImportRows(f, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -442,7 +528,7 @@ func (s *Service) ValidateImportExcel(file multipart.File) (*ImportPreview, erro
 			toCreate++
 		}
 	}
-	return &ImportPreview{TotalRows: totalRows, Valid: len(prepared), ToCreate: toCreate, ToUpdate: toUpdate, Errors: rowErrors}, nil
+	return &ImportPreview{TotalRows: totalRows, Valid: len(prepared), ToCreate: toCreate, ToUpdate: toUpdate, ToSkip: skipped, Errors: rowErrors}, nil
 }
 
 // ImportExcel parses an uploaded .xlsx and creates or updates one Peserta
@@ -454,14 +540,14 @@ func (s *Service) ValidateImportExcel(file multipart.File) (*ImportPreview, erro
 // written — rowErrors is returned instead so the caller can show exactly
 // which rows/why, matching the admin frontend's "fix the whole file, then
 // import" flow rather than a partial import silently skipping bad rows.
-func (s *Service) ImportExcel(file multipart.File, actorID *uint64) (*ImportResult, []ImportRowError, error) {
+func (s *Service) ImportExcel(file multipart.File, opts ImportOptions, actorID *uint64) (*ImportResult, []ImportRowError, error) {
 	f, err := excelize.OpenReader(file)
 	if err != nil {
 		return nil, nil, errors.New("invalid Excel file")
 	}
 	defer f.Close()
 
-	prepared, rowErrors, _, err := s.prepareImportRows(f)
+	prepared, rowErrors, _, skipped, err := s.prepareImportRows(f, opts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -469,7 +555,7 @@ func (s *Service) ImportExcel(file multipart.File, actorID *uint64) (*ImportResu
 		return nil, rowErrors, nil
 	}
 	if len(prepared) == 0 {
-		return nil, nil, errors.New("no data rows to import")
+		return nil, nil, errors.New("no rows to import for the selected mode")
 	}
 
 	// Two rows can reference the same not-yet-existing airport name; dedupe
@@ -512,7 +598,7 @@ func (s *Service) ImportExcel(file multipart.File, actorID *uint64) (*ImportResu
 		return nil, nil, err
 	}
 
-	return &ImportResult{Created: created, Updated: updated}, nil, nil
+	return &ImportResult{Created: created, Updated: updated, Skipped: skipped}, nil, nil
 }
 
 // AllCityNames/AllAirportNames back the import template's dropdown columns
@@ -627,10 +713,17 @@ func (h *Handler) ImportTemplate(c *gin.Context) {
 // @Security		SessionCookie
 // @Accept			multipart/form-data
 // @Param			file	formData	file	true	"Excel file (.xlsx)"
+// @Param			mode	formData	string	false	"insert | update | upsert (default upsert)"
+// @Param			fields	formData	string	false	"Comma-separated field keys to read (default all)"
 // @Success		200		{object}	utils.Response
 // @Failure		400		{object}	utils.Response
 // @Router			/peserta/import/validate [post]
 func (h *Handler) ValidateImport(c *gin.Context) {
+	opts, err := ParseImportOptions(c.PostForm("mode"), c.PostForm("fields"))
+	if err != nil {
+		utils.Error(c, 400, err.Error())
+		return
+	}
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
 		utils.Error(c, 400, "file is required")
@@ -643,7 +736,7 @@ func (h *Handler) ValidateImport(c *gin.Context) {
 	}
 	defer file.Close()
 
-	preview, err := h.Service.ValidateImportExcel(file)
+	preview, err := h.Service.ValidateImportExcel(file, opts)
 	if err != nil {
 		utils.Error(c, 400, err.Error())
 		return
@@ -657,10 +750,17 @@ func (h *Handler) ValidateImport(c *gin.Context) {
 // @Security		SessionCookie
 // @Accept			multipart/form-data
 // @Param			file	formData	file	true	"Excel file (.xlsx)"
+// @Param			mode	formData	string	false	"insert | update | upsert (default upsert)"
+// @Param			fields	formData	string	false	"Comma-separated field keys to read (default all)"
 // @Success		200		{object}	utils.Response
 // @Failure		400		{object}	utils.Response
 // @Router			/peserta/import [post]
 func (h *Handler) ImportExcel(c *gin.Context) {
+	opts, err := ParseImportOptions(c.PostForm("mode"), c.PostForm("fields"))
+	if err != nil {
+		utils.Error(c, 400, err.Error())
+		return
+	}
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
 		utils.Error(c, 400, "file is required")
@@ -674,7 +774,7 @@ func (h *Handler) ImportExcel(c *gin.Context) {
 	defer file.Close()
 
 	actorID := utils.CurrentUserID(c)
-	result, rowErrors, err := h.Service.ImportExcel(file, actorID)
+	result, rowErrors, err := h.Service.ImportExcel(file, opts, actorID)
 	if err != nil {
 		utils.Error(c, 400, err.Error())
 		return
@@ -685,7 +785,19 @@ func (h *Handler) ImportExcel(c *gin.Context) {
 	}
 
 	activity_logs.LogActivity(actorID, activity_logs.ActionCreate, "peserta", "",
-		nil, gin.H{"import_created": result.Created, "import_updated": result.Updated},
+		nil, gin.H{"import_mode": opts.Mode, "import_fields": importFieldList(opts), "import_created": result.Created, "import_updated": result.Updated, "import_skipped": result.Skipped},
 		c.ClientIP(), c.Request.UserAgent())
 	utils.Success(c, 200, "import completed", result)
+}
+
+// importFieldList renders opts.Fields in template column order for the
+// activity log, rather than Go's random map order.
+func importFieldList(opts ImportOptions) []string {
+	out := make([]string, 0, len(opts.Fields))
+	for _, c := range importColumnDefs {
+		if opts.Fields[c.Field] {
+			out = append(out, c.Field)
+		}
+	}
+	return out
 }
