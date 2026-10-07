@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Landing from './pages/Landing.jsx'
 import Dashboard from './pages/Dashboard.jsx'
+import QrRedirect from './pages/QrRedirect.jsx'
 import { getPublicSettings } from './api/settings.js'
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="/:code" element={<QrRedirect />} />
     </Routes>
   )
 }

@@ -2,20 +2,57 @@ import { useEffect, useRef, useState } from 'react'
 import { Html5Qrcode } from 'html5-qrcode'
 import { X, Check, AlertCircle } from 'lucide-react'
 import { scanQr } from '../api/qrGate'
+import { extractQrCode } from '../utils/qr'
 
 const READER_ID = 'qr-gate-scanner-reader'
 
-function ScannerModal({ onClose, onScanned, onViewPoints }) {
+function ScannerModal({ onClose, onScanned, onViewPoints, initialCode }) {
   const scannerRef = useRef(null)
   const busyRef = useRef(false)
-  const [status, setStatus] = useState('scanning') // scanning | success | error
+  // initialCode comes from a native-camera scan (2026scc.com/<code>) — redeem
+  // it straight away and only start the camera if they tap "Scan Lagi".
+  const [cameraOn, setCameraOn] = useState(!initialCode)
+  const [status, setStatus] = useState(initialCode ? 'submitting' : 'scanning') // submitting | scanning | success | error
   const [message, setMessage] = useState('')
-  // Kept in a ref so the scanner effect (mount-only) always calls the
-  // latest callback without restarting the camera on every parent render.
+  // Kept in a ref so the scanner effect always calls the latest callback
+  // without restarting the camera on every parent render.
   const onScannedRef = useRef(onScanned)
   onScannedRef.current = onScanned
 
+  const submit = (code) => {
+    busyRef.current = true
+    return scanQr(code)
+      .then((res) => {
+        setStatus('success')
+        if (res.data.already_scanned) {
+          setMessage(`Kamu sudah pernah scan QR ini — ${res.data.gate_name}`)
+        } else {
+          setMessage(`+${res.data.points_awarded} poin — ${res.data.gate_name}`)
+        }
+        onScannedRef.current?.()
+      })
+      .catch((err) => {
+        setStatus('error')
+        setMessage(err.response?.data?.message || 'Gagal memproses QR')
+      })
+      .finally(() => {
+        busyRef.current = false
+      })
+  }
+  const submitRef = useRef(submit)
+  submitRef.current = submit
+
+  // Ref guard, not just deps: StrictMode's double-invoked effect would
+  // otherwise redeem the code twice and report the second as "already scanned".
+  const initialSubmittedRef = useRef(false)
   useEffect(() => {
+    if (!initialCode || initialSubmittedRef.current) return
+    initialSubmittedRef.current = true
+    submitRef.current(initialCode)
+  }, [initialCode])
+
+  useEffect(() => {
+    if (!cameraOn) return undefined
     const scanner = new Html5Qrcode(READER_ID)
     scannerRef.current = scanner
     let cancelled = false
@@ -31,23 +68,7 @@ function ScannerModal({ onClose, onScanned, onViewPoints }) {
         } catch {
           // already paused/stopped — ignore
         }
-        scanQr(decodedText.trim())
-          .then((res) => {
-            setStatus('success')
-            if (res.data.already_scanned) {
-              setMessage(`Kamu sudah pernah scan QR ini — ${res.data.gate_name}`)
-            } else {
-              setMessage(`+${res.data.points_awarded} poin — ${res.data.gate_name}`)
-            }
-            onScannedRef.current?.()
-          })
-          .catch((err) => {
-            setStatus('error')
-            setMessage(err.response?.data?.message || 'Gagal memproses QR')
-          })
-          .finally(() => {
-            busyRef.current = false
-          })
+        submitRef.current(extractQrCode(decodedText))
       },
       () => {
         // per-frame decode misses are expected while aiming — ignore
@@ -74,11 +95,15 @@ function ScannerModal({ onClose, onScanned, onViewPoints }) {
         .then(() => scanner.clear())
         .catch(() => {})
     }
-  }, [])
+  }, [cameraOn])
 
   const handleScanAgain = () => {
     setStatus('scanning')
     setMessage('')
+    if (!cameraOn) {
+      setCameraOn(true)
+      return
+    }
     try {
       scannerRef.current?.resume()
     } catch {
@@ -104,6 +129,10 @@ function ScannerModal({ onClose, onScanned, onViewPoints }) {
         <div className="min-h-0 flex-1 overflow-auto bg-surface-bg p-4">
           <div id={READER_ID} className={status === 'scanning' ? 'overflow-hidden rounded-xl' : 'hidden'} />
 
+          {status === 'submitting' && (
+            <p className="py-10 text-center text-sm text-text-secondary">Memproses QR...</p>
+          )}
+
           {status === 'success' && (
             <div className="flex flex-col items-center gap-3 py-10 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-600">
@@ -125,7 +154,7 @@ function ScannerModal({ onClose, onScanned, onViewPoints }) {
           )}
         </div>
 
-        {status !== 'scanning' && (
+        {(status === 'success' || status === 'error') && (
           <div className="shrink-0 border-t border-surface-border bg-white px-6 py-4">
             <button
               type="button"

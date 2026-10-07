@@ -33,6 +33,7 @@ import Carousel from '../components/ui/Carousel'
 import { isFormComplete } from '../utils/onboarding'
 import { isPastDeadline } from '../utils/deadline'
 import { fileURL } from '../utils/url'
+import { takePendingQrCode } from '../utils/qr'
 import bgDesktop from '../assets/Microsite-02.webp'
 import bgMobile from '../assets/Microsite-01 (1).webp'
 import danamonLogo from '../assets/Single Logo_Logo White.webp'
@@ -179,9 +180,11 @@ function Dashboard() {
   const [editingProfile, setEditingProfile] = useState(false)
   const [viewingProfile, setViewingProfile] = useState(false)
   const [publicSettings, setPublicSettings] = useState({})
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [preview, setPreview] = useState(null)
   const [alertMessage, setAlertMessage] = useState(null)
   const [scannerOpen, setScannerOpen] = useState(false)
+  const [scannerInitialCode, setScannerInitialCode] = useState(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [qrisOpen, setQrisOpen] = useState(false)
   const [totalPoints, setTotalPoints] = useState(0)
@@ -200,6 +203,7 @@ function Dashboard() {
     getPublicSettings()
       .then((res) => setPublicSettings(res.data || {}))
       .catch(() => {})
+      .finally(() => setSettingsLoaded(true))
     refreshPoints().catch(() => {})
     getActiveSliders()
       .then((res) => setSliders(res.data || []))
@@ -207,6 +211,23 @@ function Dashboard() {
     refreshLeaderboard().catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate])
+
+  const stage = onboardingStage(user)
+
+  // A QR scanned with the phone's native camera lands on /:code, which
+  // stashes the code (see QrRedirect) — redeem it only once the participant
+  // is logged in, past onboarding, and the scanner menu is known to be on.
+  useEffect(() => {
+    if (checking || !settingsLoaded || stage !== 'done') return
+    const code = takePendingQrCode()
+    if (!code) return
+    if (!isMenuEnabled(publicSettings, 'menu_scanner_qr_enabled')) {
+      setAlertMessage('Maaf, Fitur ini belum tersedia')
+      return
+    }
+    setScannerInitialCode(code)
+    setScannerOpen(true)
+  }, [checking, settingsLoaded, stage, publicSettings])
 
   const handleLogout = async () => {
     try {
@@ -220,7 +241,6 @@ function Dashboard() {
     return <div className="flex min-h-screen items-center justify-center bg-navy text-white">Loading...</div>
   }
 
-  const stage = onboardingStage(user)
   const registrationClosed = isPastDeadline(publicSettings.registration_deadline)
   const formEditClosed = isPastDeadline(publicSettings.form_edit_deadline)
   const leaderboardEnabled = publicSettings.menu_leaderboard_enabled === 'true'
@@ -422,13 +442,18 @@ function Dashboard() {
 
       {scannerOpen && (
         <ScannerModal
-          onClose={() => setScannerOpen(false)}
+          initialCode={scannerInitialCode}
+          onClose={() => {
+            setScannerOpen(false)
+            setScannerInitialCode(null)
+          }}
           onScanned={() => {
             refreshPoints().catch(() => {})
             refreshLeaderboard().catch(() => {})
           }}
           onViewPoints={() => {
             setScannerOpen(false)
+            setScannerInitialCode(null)
             setHistoryOpen(true)
           }}
         />
