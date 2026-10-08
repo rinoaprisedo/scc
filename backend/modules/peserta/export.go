@@ -116,11 +116,12 @@ func exportRow(s *Service, u users.User) []string {
 // @Tags			peserta
 // @Security		SessionCookie
 // @Param			search	query	string	false	"Search by name/email/phone/KTP/passport"
+// @Param			nomor_meja	query	string	false	"Filter by exact nomor meja"
 // @Produce		text/csv
 // @Success		200
 // @Router			/peserta/export/csv [get]
 func (h *Handler) ExportCSV(c *gin.Context) {
-	list, err := h.Service.ListAll(c.Query("search"))
+	list, err := h.Service.ListAll(c.Query("search"), c.Query("nomor_meja"))
 	if err != nil {
 		utils.Error(c, 500, "failed to export peserta")
 		return
@@ -143,11 +144,12 @@ func (h *Handler) ExportCSV(c *gin.Context) {
 // @Tags			peserta
 // @Security		SessionCookie
 // @Param			search	query	string	false	"Search by name/email/phone/KTP/passport"
+// @Param			nomor_meja	query	string	false	"Filter by exact nomor meja"
 // @Produce		application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
 // @Success		200
 // @Router			/peserta/export/excel [get]
 func (h *Handler) ExportExcel(c *gin.Context) {
-	list, err := h.Service.ListAll(c.Query("search"))
+	list, err := h.Service.ListAll(c.Query("search"), c.Query("nomor_meja"))
 	if err != nil {
 		utils.Error(c, 500, "failed to export peserta")
 		return
@@ -227,11 +229,12 @@ func passportZipEntryName(u users.User) string {
 // @Tags			peserta
 // @Security		SessionCookie
 // @Param			search	query	string	false	"Search by name/email/phone/KTP/passport"
+// @Param			nomor_meja	query	string	false	"Filter by exact nomor meja"
 // @Produce		application/zip
 // @Success		200
 // @Router			/peserta/export/passport-zip [get]
 func (h *Handler) ExportPassportZip(c *gin.Context) {
-	list, err := h.Service.ListAll(c.Query("search"))
+	list, err := h.Service.ListAll(c.Query("search"), c.Query("nomor_meja"))
 	if err != nil {
 		utils.Error(c, 500, "failed to export peserta")
 		return
@@ -280,11 +283,12 @@ func (h *Handler) ExportPassportZip(c *gin.Context) {
 // @Tags			peserta
 // @Security		SessionCookie
 // @Param			search	query	string	false	"Search by name/email/phone/KTP/passport"
+// @Param			nomor_meja	query	string	false	"Filter by exact nomor meja"
 // @Produce		application/zip
 // @Success		200
 // @Router			/peserta/export/ktp-zip [get]
 func (h *Handler) ExportKtpZip(c *gin.Context) {
-	list, err := h.Service.ListAll(c.Query("search"))
+	list, err := h.Service.ListAll(c.Query("search"), c.Query("nomor_meja"))
 	if err != nil {
 		utils.Error(c, 500, "failed to export peserta")
 		return

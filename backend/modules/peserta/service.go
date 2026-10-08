@@ -125,7 +125,7 @@ func recomputeAttendanceStatus(u *users.User) {
 // below), rather than on a schedule, since this data doesn't change fast
 // enough to need one. Returns how many rows were actually changed.
 func (s *Service) RegenerateAttendanceStatuses() (int, error) {
-	list, err := s.repo.ListAll("")
+	list, err := s.repo.ListAll("", "")
 	if err != nil {
 		return 0, err
 	}
@@ -216,16 +216,20 @@ func (s *Service) invalidateSessions(userID uint64) {
 // back, same as dashboard.Service.Summary — so opening/paging through the
 // Peserta admin list also self-heals any row where AttendanceStatus drifted
 // out of sync with the underlying profile data.
-func (s *Service) List(p utils.Pagination) ([]UserWithPoints, int64, error) {
+func (s *Service) List(p utils.Pagination, nomorMeja string) ([]UserWithPoints, int64, error) {
 	if _, err := s.RegenerateAttendanceStatuses(); err != nil {
 		return nil, 0, err
 	}
-	return s.repo.List(p)
+	return s.repo.List(p, nomorMeja)
 }
 
 // ListAll backs CSV/Excel export — every matching row, not one page.
-func (s *Service) ListAll(search string) ([]users.User, error) {
-	return s.repo.ListAll(search)
+func (s *Service) ListAll(search, nomorMeja string) ([]users.User, error) {
+	return s.repo.ListAll(search, nomorMeja)
+}
+
+func (s *Service) NomorMejaOptions() ([]string, error) {
+	return s.repo.NomorMejaOptions()
 }
 
 // OpenKtpFile backs the KTP ZIP export — reads a single uploaded KTP file's

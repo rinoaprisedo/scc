@@ -130,6 +130,10 @@ func (s *Service) ListAll(search, status, trxStatus, pesertaUUID string) ([]Qris
 	return s.repo.ListAll(search, status, trxStatus, pesertaUUID)
 }
 
+func (s *Service) CountExportPeserta(search, status, trxStatus, pesertaUUID string) (included, excluded int64, err error) {
+	return s.repo.CountExportPeserta(search, status, trxStatus, pesertaUUID)
+}
+
 func (s *Service) Get(uuidStr string) (*Response, error) {
 	row, err := s.repo.FindByUUID(uuidStr)
 	if err != nil {

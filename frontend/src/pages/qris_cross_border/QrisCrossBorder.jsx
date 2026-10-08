@@ -19,6 +19,7 @@ import {
   deleteQrisCrossBorder,
   updateQrisCrossBorderStatus,
   exportQrisCrossBorderExcel,
+  getQrisCrossBorderExportCount,
 } from '../../api/qrisCrossBorder'
 import { searchPesertaOptions } from '../../api/peserta'
 import { fileURL } from '../../utils/url'
@@ -63,6 +64,11 @@ function QrisCrossBorder() {
         trx_status: trxStatus,
         peserta_uuid: pesertaFilter,
       }),
+  })
+
+  const { data: exportCount } = useQuery({
+    queryKey: ['qris-cross-border', 'export-count', { search, trxStatus, pesertaFilter }],
+    queryFn: () => getQrisCrossBorderExportCount({ search, trx_status: trxStatus, peserta_uuid: pesertaFilter }),
   })
 
   const saveMutation = useMutation({
@@ -323,6 +329,17 @@ function QrisCrossBorder() {
 
   return (
     <div className="space-y-4">
+      <div className="rounded-md border border-surface-border px-4 py-3 text-sm">
+        <div>
+          <span className="text-text-tertiary">Peserta masuk export: </span>
+          <span className="font-semibold">{exportCount?.data?.peserta_count ?? '-'}</span>
+          <span className="ml-4 text-text-tertiary">Dikecualikan: </span>
+          <span className="font-semibold">{exportCount?.data?.excluded_count ?? '-'}</span>
+        </div>
+        <p className="mt-1 text-xs text-text-tertiary">
+          Hanya transaksi approved. Dikecualikan: Committee, posisi AM/RCH/RSMEH/RH, cabang Head Office, region Manulife.
+        </p>
+      </div>
       <Table
         columns={columns}
         data={data?.data || []}

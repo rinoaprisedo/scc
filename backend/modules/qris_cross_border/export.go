@@ -82,3 +82,21 @@ func (h *Handler) ExportExcel(c *gin.Context) {
 		c.Status(http.StatusInternalServerError)
 	}
 }
+
+// ExportCount godoc
+// @Summary		Count distinct peserta included in / excluded from the Excel export
+// @Tags			qris-cross-border
+// @Security		SessionCookie
+// @Param			search			query	string	false	"Search by peserta name/NIK/merchant/no. referensi"
+// @Param			trx_status		query	string	false	"Filter by transaction status"
+// @Param			peserta_uuid	query	string	false	"Filter by peserta"
+// @Success		200	{object}	utils.Response
+// @Router			/qris-cross-border/export/count [get]
+func (h *Handler) ExportCount(c *gin.Context) {
+	included, excluded, err := h.Service.CountExportPeserta(c.Query("search"), StatusApproved, c.Query("trx_status"), c.Query("peserta_uuid"))
+	if err != nil {
+		utils.Error(c, 500, "failed to count qris cross border export")
+		return
+	}
+	utils.Success(c, 200, "ok", gin.H{"peserta_count": included, "excluded_count": excluded})
+}

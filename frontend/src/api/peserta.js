@@ -5,6 +5,7 @@ export const getPeserta = (params) => client.get('/peserta', { params }).then((r
 // form and list filter) — keeps the option shape in one place.
 export const searchPesertaOptions = (search) =>
   getPeserta({ search, limit: 10 }).then((res) => (res.data || []).map((p) => ({ uuid: p.uuid, name: p.name, ktp_number: p.ktp_number })))
+export const getPesertaNomorMejaOptions = () => client.get('/peserta/nomor-meja-options').then((r) => r.data)
 export const getPesertaOne = (uuid) => client.get(`/peserta/${uuid}`).then((r) => r.data)
 export const createPeserta = (payload) => client.post('/peserta', payload).then((r) => r.data)
 export const updatePeserta = (uuid, payload) => client.put(`/peserta/${uuid}`, payload).then((r) => r.data)

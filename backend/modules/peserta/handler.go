@@ -65,16 +65,32 @@ func isPastDeadline(value string) bool {
 // @Param			page	query		int		false	"Page number"
 // @Param			limit	query		int		false	"Page size"
 // @Param			search	query		string	false	"Search by name/email/phone/KTP/passport"
+// @Param			nomor_meja	query		string	false	"Filter by exact nomor meja"
 // @Success		200		{object}	utils.Response
 // @Router			/peserta [get]
 func (h *Handler) List(c *gin.Context) {
 	p := utils.GetPagination(c, "created_at")
-	list, total, err := h.Service.List(p)
+	list, total, err := h.Service.List(p, c.Query("nomor_meja"))
 	if err != nil {
 		utils.Error(c, 500, "failed to fetch peserta")
 		return
 	}
 	utils.SuccessList(c, "ok", list, utils.BuildMeta(p.Page, p.Limit, total))
+}
+
+// NomorMejaOptions godoc
+// @Summary		List distinct nomor meja assigned to peserta
+// @Tags			peserta
+// @Security		SessionCookie
+// @Success		200		{object}	utils.Response
+// @Router			/peserta/nomor-meja-options [get]
+func (h *Handler) NomorMejaOptions(c *gin.Context) {
+	list, err := h.Service.NomorMejaOptions()
+	if err != nil {
+		utils.Error(c, 500, "failed to fetch nomor meja options")
+		return
+	}
+	utils.Success(c, 200, "ok", list)
 }
 
 // Get godoc

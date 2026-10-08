@@ -14,6 +14,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, sessionAuth gin.HandlerFun
 
 	g.GET("", guard("qris-cross-border", "view"), h.List)
 	g.GET("/export/excel", guard("qris-cross-border", "view"), h.ExportExcel)
+	g.GET("/export/count", guard("qris-cross-border", "view"), h.ExportCount)
 	g.GET("/:uuid", guard("qris-cross-border", "view"), h.Get)
 	g.POST("", guard("qris-cross-border", "create"), uploadLimiter, h.Create)
 	g.PUT("/:uuid", guard("qris-cross-border", "edit"), uploadLimiter, h.Update)

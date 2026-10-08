@@ -2,6 +2,7 @@ package peserta
 
 import (
 	"errors"
+	"sort"
 
 	"baseadmin/backend/modules/bandara"
 	"baseadmin/backend/modules/users"
@@ -52,16 +53,25 @@ type UserWithPoints struct {
 	TotalPoints int64 `json:"total_points"`
 }
 
-func (r *Repository) List(p utils.Pagination) ([]UserWithPoints, int64, error) {
+// filtered applies the list/export filters shared by List and ListAll.
+func (r *Repository) filtered(search, nomorMeja string) *gorm.DB {
 	q := r.scope().Preload("Role").Preload("OriginCity").Preload("NearestAirport")
 
-	if p.Search != "" {
-		like := "%" + p.Search + "%"
+	if search != "" {
+		like := "%" + search + "%"
 		q = q.Where(
 			"users.name ILIKE ? OR users.email ILIKE ? OR users.phone_number ILIKE ? OR users.ktp_number ILIKE ? OR users.nomor_ktp ILIKE ? OR users.passport_number ILIKE ?",
 			like, like, like, like, like, like,
 		)
 	}
+	if nomorMeja != "" {
+		q = q.Where("users.nomor_meja = ?", nomorMeja)
+	}
+	return q
+}
+
+func (r *Repository) List(p utils.Pagination, nomorMeja string) ([]UserWithPoints, int64, error) {
+	q := r.filtered(p.Search, nomorMeja)
 
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
@@ -76,19 +86,28 @@ func (r *Repository) List(p utils.Pagination) ([]UserWithPoints, int64, error) {
 
 // ListAll returns every matching row unpaginated — backs CSV/Excel export,
 // which needs the full filtered result set rather than one page of it.
-func (r *Repository) ListAll(search string) ([]users.User, error) {
-	q := r.scope().Preload("Role").Preload("OriginCity").Preload("NearestAirport")
-
-	if search != "" {
-		like := "%" + search + "%"
-		q = q.Where(
-			"users.name ILIKE ? OR users.email ILIKE ? OR users.phone_number ILIKE ? OR users.ktp_number ILIKE ? OR users.nomor_ktp ILIKE ? OR users.passport_number ILIKE ?",
-			like, like, like, like, like, like,
-		)
-	}
-
+func (r *Repository) ListAll(search, nomorMeja string) ([]users.User, error) {
 	var list []users.User
-	err := q.Order("users.created_at desc").Find(&list).Error
+	err := r.filtered(search, nomorMeja).Order("users.created_at desc").Find(&list).Error
+	return list, err
+}
+
+// NomorMejaOptions returns every distinct non-empty nomor_meja currently
+// assigned to a peserta — backs the list page's filter select. Sorted by
+// length first so purely numeric values read 1, 2, 10 rather than 1, 10, 2
+// (done in Go: Postgres rejects ORDER BY LENGTH(...) alongside DISTINCT).
+func (r *Repository) NomorMejaOptions() ([]string, error) {
+	var list []string
+	err := r.scope().
+		Where("COALESCE(TRIM(users.nomor_meja), '') <> ''").
+		Distinct("users.nomor_meja").
+		Pluck("users.nomor_meja", &list).Error
+	sort.Slice(list, func(i, j int) bool {
+		if len(list[i]) != len(list[j]) {
+			return len(list[i]) < len(list[j])
+		}
+		return list[i] < list[j]
+	})
 	return list, err
 }
 

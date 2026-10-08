@@ -16,6 +16,8 @@ export const exportQrisCrossBorderExcel = (params) =>
   client
     .get('/qris-cross-border/export/excel', { params, responseType: 'blob' })
     .then((r) => downloadFile(r.data, 'qris_cross_border.xlsx'))
+export const getQrisCrossBorderExportCount = (params) =>
+  client.get('/qris-cross-border/export/count', { params }).then((r) => r.data)
 export const getQrisCrossBorderOne = (uuid) => client.get(`/qris-cross-border/${uuid}`).then((r) => r.data)
 export const createQrisCrossBorder = (formData) =>
   client.post('/qris-cross-border', formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data)

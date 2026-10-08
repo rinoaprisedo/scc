@@ -1,10 +1,12 @@
 import { useState, useMemo, useRef, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Plus, Pencil, Trash2, Eye, Trophy, RotateCcw, MoreHorizontal, FileSpreadsheet, FileText, FileUp, FileDown, FileArchive } from 'lucide-react'
+import { Plus, Pencil, Trash2, Eye, Trophy, RotateCcw, MoreHorizontal, FileSpreadsheet, FileText, FileUp, FileDown, FileArchive, Filter } from 'lucide-react'
 import { format } from 'date-fns'
 import Table from '../../components/ui/Table'
 import Badge from '../../components/ui/Badge'
+import Button from '../../components/ui/Button'
+import Select from '../../components/ui/Select'
 import { Menubar, MenubarAction, MenubarMenu, MenubarItem, MenubarLabel, MenubarSeparator } from '../../components/ui/Menubar'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import DownloadProgressModal from '../../components/ui/DownloadProgressModal'
@@ -14,6 +16,7 @@ import PesertaPointHistoryModal from './PesertaPointHistoryModal'
 import PesertaImportModal, { IMPORT_FIELDS, isFieldLocked } from './PesertaImportModal'
 import {
   getPeserta,
+  getPesertaNomorMejaOptions,
   createPeserta,
   updatePeserta,
   deletePeserta,
@@ -43,6 +46,8 @@ function Peserta() {
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('created_at')
   const [sortDir, setSortDir] = useState('desc')
+  const [nomorMeja, setNomorMeja] = useState('')
+  const [draftNomorMeja, setDraftNomorMeja] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [deleting, setDeleting] = useState(null)
@@ -65,7 +70,7 @@ function Peserta() {
     async (label, exportFn, successMessage) => {
       setZipProgress({ label, loaded: 0, rate: 0 })
       try {
-        await exportFn({ search }, (evt) => setZipProgress({ label, loaded: evt.loaded, rate: evt.rate || 0 }))
+        await exportFn({ search, nomor_meja: nomorMeja }, (evt) => setZipProgress({ label, loaded: evt.loaded, rate: evt.rate || 0 }))
         toast.success(successMessage)
       } catch {
         toast.error('Export failed')
@@ -73,7 +78,7 @@ function Peserta() {
         setZipProgress(null)
       }
     },
-    [search],
+    [search, nomorMeja],
   )
   const handleExportKtpZip = useCallback(
     () => exportZip('Menyiapkan & mengunduh ZIP KTP...', exportPesertaKtpZip, 'KTP ZIP downloaded'),
@@ -85,9 +90,11 @@ function Peserta() {
   )
 
   const { data, isLoading } = useQuery({
-    queryKey: ['peserta', { page, limit, search, sortBy, sortDir }],
-    queryFn: () => getPeserta({ page, limit, search, sort_by: sortBy, sort_dir: sortDir }),
+    queryKey: ['peserta', { page, limit, search, sortBy, sortDir, nomorMeja }],
+    queryFn: () => getPeserta({ page, limit, search, sort_by: sortBy, sort_dir: sortDir, nomor_meja: nomorMeja }),
   })
+  const { data: nomorMejaData } = useQuery({ queryKey: ['peserta', 'nomor-meja-options'], queryFn: getPesertaNomorMejaOptions })
+  const nomorMejaOptions = nomorMejaData?.data || []
 
   const { data: kotaAsalData } = useQuery({ queryKey: ['kota-asal', 'all'], queryFn: () => getKotaAsal({ limit: 100 }) })
   const { data: bandaraData } = useQuery({ queryKey: ['bandara', 'all'], queryFn: () => getBandara({ limit: 100 }) })
@@ -311,12 +318,50 @@ function Peserta() {
               />
             </>
           )}
+          <MenubarMenu id="filter" label="Filter" icon={Filter} align="sheet" active={!!nomorMeja}>
+            {(close) => (
+              <div className="flex w-full flex-col gap-3 p-2 sm:w-64">
+                <Select label="Nomor Meja" value={draftNomorMeja} onChange={(e) => setDraftNomorMeja(e.target.value)}>
+                  <option value="">All</option>
+                  {nomorMejaOptions.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </Select>
+                <div className="flex items-center justify-end gap-2 border-t border-surface-border pt-3">
+                  <Button
+                    variant="secondary"
+                    className="h-[32px] px-3"
+                    onClick={() => {
+                      setDraftNomorMeja('')
+                      setNomorMeja('')
+                      setPage(1)
+                      close()
+                    }}
+                  >
+                    Reset
+                  </Button>
+                  <Button
+                    className="h-[32px] px-3"
+                    onClick={() => {
+                      setNomorMeja(draftNomorMeja)
+                      setPage(1)
+                      close()
+                    }}
+                  >
+                    Apply
+                  </Button>
+                </div>
+              </div>
+            )}
+          </MenubarMenu>
           <MenubarMenu id="others" label="Others" icon={MoreHorizontal} align="right">
             <MenubarItem
               label="Export Excel"
               icon={FileSpreadsheet}
               onClick={() =>
-                toast.promise(exportPesertaExcel({ search }), {
+                toast.promise(exportPesertaExcel({ search, nomor_meja: nomorMeja }), {
                   loading: 'Exporting...',
                   success: 'Excel file downloaded',
                   error: 'Export failed',
@@ -327,7 +372,7 @@ function Peserta() {
               label="Export CSV"
               icon={FileText}
               onClick={() =>
-                toast.promise(exportPesertaCsv({ search }), {
+                toast.promise(exportPesertaCsv({ search, nomor_meja: nomorMeja }), {
                   loading: 'Exporting...',
                   success: 'CSV file downloaded',
                   error: 'Export failed',
@@ -356,7 +401,7 @@ function Peserta() {
           </MenubarMenu>
         </Menubar>
       ),
-      [canCreate, search, handleExportKtpZip, handleExportPassportZip],
+      [canCreate, search, nomorMeja, draftNomorMeja, nomorMejaOptions, handleExportKtpZip, handleExportPassportZip],
     ),
   )
 

@@ -67,20 +67,36 @@ func (r *Repository) ListByPeserta(pesertaID uint64, p utils.Pagination) ([]Qris
 	return list, total, err
 }
 
-// ListAll returns every row matching the given filters, unpaginated — backs
-// the Excel export, which needs the full filtered result set rather than one
-// page of it. Filter semantics mirror List exactly.
-func (r *Repository) ListAll(search, status, trxStatus, pesertaUUID string) ([]QrisCrossBorder, error) {
-	q := r.DB.Model(&QrisCrossBorder{}).Preload("Peserta")
+// Peserta matching any of these are committee/management/internal staff,
+// not payout recipients, so they're left out of the export and its count.
+var (
+	exportExcludedDescriptions = []string{"COMMITTEE"}
+	exportExcludedPositions    = []string{"AM", "RCH", "RSMEH", "RH"}
+	exportExcludedCabang       = []string{"HEAD OFFICE"}
+	exportExcludedRegions      = []string{"MANULIFE"}
+)
+
+// exportScope is filteredScope minus the excluded peserta. COALESCE
+// matters: a NULL column inside NOT IN yields NULL, which would silently
+// drop peserta who simply have that field unset.
+func (r *Repository) exportScope(search, status, trxStatus, pesertaUUID string) *gorm.DB {
+	return r.filteredScope(search, status, trxStatus, pesertaUUID).
+		Where("UPPER(TRIM(COALESCE(users.description, ''))) NOT IN ?", exportExcludedDescriptions).
+		Where("UPPER(TRIM(COALESCE(users.position, ''))) NOT IN ?", exportExcludedPositions).
+		Where("UPPER(TRIM(COALESCE(users.cabang, ''))) NOT IN ?", exportExcludedCabang).
+		Where("UPPER(TRIM(COALESCE(users.region, ''))) NOT IN ?", exportExcludedRegions)
+}
+
+// filteredScope applies the list-page filters, always joined against users.
+func (r *Repository) filteredScope(search, status, trxStatus, pesertaUUID string) *gorm.DB {
+	q := r.DB.Model(&QrisCrossBorder{}).
+		Joins("JOIN users ON users.id = qris_cross_borders.peserta_id")
 
 	if status != "" {
 		q = q.Where("qris_cross_borders.status = ?", status)
 	}
 	if trxStatus != "" {
 		q = q.Where("qris_cross_borders.trx_status = ?", trxStatus)
-	}
-	if search != "" || pesertaUUID != "" {
-		q = q.Joins("JOIN users ON users.id = qris_cross_borders.peserta_id")
 	}
 	if search != "" {
 		like := "%" + search + "%"
@@ -92,10 +108,32 @@ func (r *Repository) ListAll(search, status, trxStatus, pesertaUUID string) ([]Q
 	if pesertaUUID != "" {
 		q = q.Where("users.uuid = ?", pesertaUUID)
 	}
+	return q
+}
 
+// ListAll returns every row matching the given filters, unpaginated — backs
+// the Excel export, which needs the full filtered result set rather than one
+// page of it. Same filters as List, plus the exportScope exclusions.
+func (r *Repository) ListAll(search, status, trxStatus, pesertaUUID string) ([]QrisCrossBorder, error) {
 	var list []QrisCrossBorder
-	err := q.Order("qris_cross_borders.created_at DESC").Find(&list).Error
+	err := r.exportScope(search, status, trxStatus, pesertaUUID).
+		Preload("Peserta").Order("qris_cross_borders.created_at DESC").Find(&list).Error
 	return list, err
+}
+
+// CountExportPeserta counts distinct peserta that ListAll would export, and
+// those matching the same filters but dropped by the exclusions.
+func (r *Repository) CountExportPeserta(search, status, trxStatus, pesertaUUID string) (included, excluded int64, err error) {
+	var total int64
+	if err = r.filteredScope(search, status, trxStatus, pesertaUUID).
+		Distinct("qris_cross_borders.peserta_id").Count(&total).Error; err != nil {
+		return 0, 0, err
+	}
+	if err = r.exportScope(search, status, trxStatus, pesertaUUID).
+		Distinct("qris_cross_borders.peserta_id").Count(&included).Error; err != nil {
+		return 0, 0, err
+	}
+	return included, total - included, nil
 }
 
 func (r *Repository) FindByUUID(uuidStr string) (*QrisCrossBorder, error) {
