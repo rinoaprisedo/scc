@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"baseadmin/backend/utils"
@@ -38,13 +40,10 @@ func (h *Handler) ExportExcel(c *gin.Context) {
 	const sheet = "Qris Cross Border"
 	f.SetSheetName("Sheet1", sheet)
 
-	// Display-only currency formats — cells stay numeric so the sheet can
-	// still be summed/sorted. MYR only shows decimals when there are any, so
-	// whole amounts read "RM 1,000" rather than "RM 1,000.00".
-	idrFmt, myrFmt, myrDecFmt := `"Rp "#,##0`, `"RM "#,##0`, `"RM "#,##0.00`
-	idrStyle, _ := f.NewStyle(&excelize.Style{CustomNumFmt: &idrFmt})
-	myrStyle, _ := f.NewStyle(&excelize.Style{CustomNumFmt: &myrFmt})
-	myrDecStyle, _ := f.NewStyle(&excelize.Style{CustomNumFmt: &myrDecFmt})
+	// Nominal cells are written as text (not numbers) on request, so the
+	// sheet shows exactly the formatted string regardless of locale. "@" is
+	// Excel's text format, which stops it re-parsing "1,000" back to a number.
+	textStyle, _ := f.NewStyle(&excelize.Style{NumFmt: 49})
 
 	for i, col := range exportColumns {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
@@ -65,14 +64,9 @@ func (h *Handler) ExportExcel(c *gin.Context) {
 		idrCell, _ := excelize.CoordinatesToCellName(4, r)
 		f.SetCellValue(sheet, nameCell, name)
 		f.SetCellValue(sheet, nikCell, nik)
-		f.SetCellValue(sheet, myrCell, row.NominalAsing)
-		f.SetCellValue(sheet, idrCell, row.NominalRupiah)
-		if row.NominalAsing == math.Trunc(row.NominalAsing) {
-			f.SetCellStyle(sheet, myrCell, myrCell, myrStyle)
-		} else {
-			f.SetCellStyle(sheet, myrCell, myrCell, myrDecStyle)
-		}
-		f.SetCellStyle(sheet, idrCell, idrCell, idrStyle)
+		f.SetCellStr(sheet, myrCell, formatNominal(row.NominalAsing))
+		f.SetCellStr(sheet, idrCell, formatNominal(row.NominalRupiah))
+		f.SetCellStyle(sheet, myrCell, idrCell, textStyle)
 	}
 
 	filename := fmt.Sprintf("qris_cross_border_%s.xlsx", time.Now().Format("20060102_150405"))
@@ -81,6 +75,29 @@ func (h *Handler) ExportExcel(c *gin.Context) {
 	if err := f.Write(c.Writer); err != nil {
 		c.Status(http.StatusInternalServerError)
 	}
+}
+
+// formatNominal renders an amount with comma thousand separators, and two
+// decimals only when there's a fractional part: 1000 → "1,000",
+// 1234.5 → "1,234.50".
+func formatNominal(v float64) string {
+	str := strconv.FormatFloat(math.Abs(v), 'f', 2, 64)
+	intPart, frac := str[:len(str)-3], str[len(str)-2:]
+
+	var b strings.Builder
+	if v < 0 {
+		b.WriteByte('-')
+	}
+	for i, d := range intPart {
+		if i > 0 && (len(intPart)-i)%3 == 0 {
+			b.WriteByte(',')
+		}
+		b.WriteRune(d)
+	}
+	if frac != "00" {
+		b.WriteString("." + frac)
+	}
+	return b.String()
 }
 
 // ExportCount godoc
