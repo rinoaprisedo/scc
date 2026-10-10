@@ -1,70 +1,48 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Crown, Maximize, Trophy } from 'lucide-react'
+import { Maximize, Trophy } from 'lucide-react'
 import { getPublicLeaderboard } from '../../api/leaderboard'
 import { MEDALS, formatPoints, initials } from './shared'
 
-const LIMIT = 10
+const LIMIT = 5
 const REFRESH_MS = 10000
 
 const glow = (alpha) => `rgb(var(--color-primary-rgb) / ${alpha})`
 
-function PodiumSpot({ entry, place }) {
-  const medal = MEDALS[place]
-  const isFirst = place === 1
-  const pillar = { 1: 'h-[52%]', 2: 'h-[40%]', 3: 'h-[30%]' }[place]
-  const order = { 1: 'order-2', 2: 'order-1', 3: 'order-3' }[place]
+// All five winners share the same gold tone — no gold/silver/bronze split.
+const GOLD = MEDALS[1]
+const gold = (alpha) => `${GOLD.ring}${Math.round(alpha * 255).toString(16).padStart(2, '0')}`
 
+function WinnerCard({ entry, place }) {
   return (
-    <div className={`flex h-full min-w-0 flex-1 flex-col items-center justify-end ${order}`}>
-      {isFirst && <Crown className="mb-[1vh] h-[5vh] w-[5vh] drop-shadow-lg" style={{ color: medal.ring }} fill={medal.ring} />}
+    <div
+      className="flex h-full min-w-0 flex-1 flex-col items-center justify-center rounded-3xl px-[1vw] py-[3vh]"
+      style={{
+        background: `linear-gradient(180deg, ${gold(0.22)}, ${gold(0.03)})`,
+        borderTop: `0.5vh solid ${GOLD.ring}`,
+      }}
+    >
+      <span className="text-[9vh] font-black leading-none" style={{ color: GOLD.ring }}>
+        {place}
+      </span>
       <div
-        className={`flex shrink-0 items-center justify-center rounded-full font-bold shadow-2xl ${
-          isFirst ? 'h-[13vh] w-[13vh] text-[4.5vh]' : 'h-[10vh] w-[10vh] text-[3.5vh]'
-        }`}
-        style={{ background: medal.bg, color: medal.text, boxShadow: `0 0 0 0.6vh ${medal.ring}33, 0 1vh 4vh ${medal.ring}55` }}
+        className="mt-[3vh] flex h-[13vh] w-[13vh] shrink-0 items-center justify-center rounded-full text-[4.5vh] font-bold shadow-2xl"
+        style={{
+          background: GOLD.bg,
+          color: GOLD.text,
+          boxShadow: `0 0 0 0.6vh ${gold(0.2)}, 0 1vh 4vh ${gold(0.33)}`,
+        }}
       >
         {entry ? initials(entry.name) : '–'}
       </div>
-      <p
-        className={`mt-[1.5vh] line-clamp-2 w-full px-[1vw] text-center font-semibold leading-tight text-white ${
-          isFirst ? 'text-[3vh]' : 'text-[2.4vh]'
-        }`}
-      >
+      <p className="mt-[3vh] line-clamp-2 min-h-[6.6vh] w-full text-center text-[2.8vh] font-semibold leading-tight text-white">
         {entry?.name || 'Belum ada'}
       </p>
-      {entry?.ktp_number && <p className="mt-[0.3vh] font-mono text-[1.6vh] text-white/45">{entry.ktp_number}</p>}
-      <p className={`mt-[0.5vh] font-bold tabular-nums ${isFirst ? 'text-[4.5vh]' : 'text-[3.4vh]'}`} style={{ color: medal.ring }}>
+      <p className="mt-[0.5vh] h-[2vh] font-mono text-[1.6vh] text-white/45">{entry?.ktp_number}</p>
+      <p className="mt-[2vh] text-[4.5vh] font-bold tabular-nums" style={{ color: GOLD.ring }}>
         {formatPoints(entry?.points)}
         <span className="ml-[0.5vw] text-[1.8vh] font-medium text-white/50">poin</span>
       </p>
-      <div
-        className={`mt-[1.5vh] flex w-[88%] items-start justify-center rounded-t-2xl pt-[1.5vh] ${pillar}`}
-        style={{ background: `linear-gradient(180deg, ${medal.ring}40, ${medal.ring}0a)`, borderTop: `0.4vh solid ${medal.ring}` }}
-      >
-        <span className="text-[6vh] font-black leading-none text-white/80">{place}</span>
-      </div>
-    </div>
-  )
-}
-
-function ListRow({ entry }) {
-  return (
-    <div className="flex min-h-0 items-center gap-[1.2vw] rounded-xl border border-white/5 bg-white/[0.04] px-[1.5vw]">
-      <span
-        className="flex h-[5vh] min-w-[5vh] shrink-0 items-center justify-center rounded-full text-[2vh] font-bold tabular-nums text-white"
-        style={{ background: glow(0.25) }}
-      >
-        {entry.rank}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[2.5vh] font-medium leading-tight text-white/90">{entry.name}</p>
-        {entry.ktp_number && <p className="truncate font-mono text-[1.5vh] leading-tight text-white/40">{entry.ktp_number}</p>}
-      </div>
-      <span className="shrink-0 text-[2.4vh] font-bold tabular-nums text-white">
-        {formatPoints(entry.points)}
-        <span className="ml-[0.4vw] text-[1.5vh] font-medium text-white/40">poin</span>
-      </span>
     </div>
   )
 }
@@ -100,7 +78,6 @@ function LeaderboardDisplay() {
   }, [])
 
   const entries = data?.data || []
-  const rest = entries.slice(3)
 
   return (
     <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-[#0b0d12] px-[3vw] py-[3vh] text-white">
@@ -138,23 +115,10 @@ function LeaderboardDisplay() {
           <p className="text-[3vh]">{data ? 'Belum ada peserta' : 'Memuat leaderboard...'}</p>
         </div>
       ) : (
-        <main className={`relative mt-[3vh] flex min-h-0 flex-1 gap-[3vw] ${rest.length === 0 ? 'justify-center' : ''}`}>
-          <section className={`flex min-h-0 items-end gap-[1.5vw] ${rest.length === 0 ? 'w-[60vw]' : 'w-[46%]'}`}>
-            {[1, 2, 3].map((place) => (
-              <PodiumSpot key={place} place={place} entry={entries[place - 1]} />
-            ))}
-          </section>
-
-          {rest.length > 0 && (
-            <section
-              className="grid min-h-0 flex-1 gap-y-[1vh] h-[80%] self-end"
-              style={{ gridTemplateRows: `repeat(${LIMIT - 3}, minmax(0, 1fr))` }}
-            >
-              {rest.map((entry) => (
-                <ListRow key={entry.rank} entry={entry} />
-              ))}
-            </section>
-          )}
+        <main className="relative mt-[3vh] flex min-h-0 flex-1 gap-[1.5vw]">
+          {Array.from({ length: LIMIT }, (_, i) => (
+            <WinnerCard key={i + 1} place={i + 1} entry={entries[i]} />
+          ))}
         </main>
       )}
 

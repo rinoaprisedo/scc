@@ -82,7 +82,7 @@ const MENU_ITEMS = [
     contentKey: 'about_malaysia_file',
     settingKey: 'menu_about_malaysia_enabled',
   },
-  { label: 'Event Gallery', icon: Image, settingKey: 'menu_event_gallery_enabled' },
+  { label: 'Event Gallery', icon: Image, urlKey: 'event_gallery_url', settingKey: 'menu_event_gallery_enabled' },
   { label: 'Scan QR', icon: QrCode, action: 'scan', settingKey: 'menu_scanner_qr_enabled' },
   { label: 'History Point', icon: History, action: 'history', settingKey: 'menu_history_scanner_enabled' },
 ]
@@ -359,14 +359,23 @@ function Dashboard() {
             </div>
 
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              {MENU_ITEMS.map(({ label, icon: Icon, contentKey, action, settingKey }) => {
+              {MENU_ITEMS.map(({ label, icon: Icon, contentKey, urlKey, action, settingKey }) => {
                 const enabled = isMenuEnabled(publicSettings, settingKey)
                 const handleActivate = () => {
                   if (!enabled) {
                     setAlertMessage('Maaf, Fitur ini belum tersedia')
                     return
                   }
-                  if (contentKey) {
+                  if (urlKey) {
+                    const url = (publicSettings[urlKey] || '').trim()
+                    // Admin-entered value — only follow http(s) so a stray
+                    // javascript: URL can't run on the participant site.
+                    if (!/^https?:\/\//i.test(url)) {
+                      setAlertMessage('Maaf, Fitur ini belum tersedia')
+                      return
+                    }
+                    window.open(url, '_blank', 'noopener,noreferrer')
+                  } else if (contentKey) {
                     setPreview({ title: label, path: publicSettings[contentKey] })
                   } else if (action === 'scan') {
                     setScannerOpen(true)

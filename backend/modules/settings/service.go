@@ -72,6 +72,10 @@ var publicKeys = map[string]bool{
 	// content instead. See qr_gate.Service.Leaderboard for the ranking data.
 	"menu_leaderboard_enabled": true,
 
+	// Where the participant website's Event Gallery tile sends people on
+	// click (opened in a new tab). Empty = tile shows "belum tersedia".
+	"event_gallery_url": true,
+
 	// Deadlines (datetime-local strings, "" = no deadline) the participant
 	// website compares against the current time client-side to decide
 	// whether to show the attendance prompt / edit-form action at all —

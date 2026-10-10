@@ -207,6 +207,7 @@ func seedSettings(db *gorm.DB) {
 		"menu_history_scanner_enabled":   settings.TypeBoolean,
 		"menu_event_information_enabled": settings.TypeBoolean,
 		"menu_leaderboard_enabled":       settings.TypeBoolean,
+		"event_gallery_url":              settings.TypeString,
 	}
 	values := map[string]string{
 		"app_name":                       "scc",
@@ -224,6 +225,7 @@ func seedSettings(db *gorm.DB) {
 		// Off by default — the slider carousel stays the fallback content
 		// until an admin explicitly opts into showing the leaderboard.
 		"menu_leaderboard_enabled": "false",
+		"event_gallery_url":        "",
 	}
 	for key, t := range defaults {
 		var s settings.Setting

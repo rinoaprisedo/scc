@@ -145,6 +145,7 @@ function Settings() {
   const [menuToggles, setMenuToggles] = useState({})
   const [registrationDeadline, setRegistrationDeadline] = useState('')
   const [formEditDeadline, setFormEditDeadline] = useState('')
+  const [galleryUrl, setGalleryUrl] = useState('')
   const queryClient = useQueryClient()
   const applyPrimaryColorLive = useSettingsStore((s) => s.setPrimaryColor)
   const storedPrimaryColor = useSettingsStore((s) => s.primaryColor)
@@ -170,6 +171,7 @@ function Settings() {
       setMenuToggles(toggles)
       setRegistrationDeadline(map.registration_deadline || '')
       setFormEditDeadline(map.form_edit_deadline || '')
+      setGalleryUrl(map.event_gallery_url || '')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data])
@@ -220,7 +222,14 @@ function Settings() {
   }
 
   const handleSaveMenuToggles = () => {
-    const payload = {}
+    const url = galleryUrl.trim()
+    // The website only follows http(s) links — reject anything else here so
+    // the admin finds out now instead of the tile silently doing nothing.
+    if (url && !/^https?:\/\//i.test(url)) {
+      toast.error('Event Gallery URL must start with http:// or https://')
+      return
+    }
+    const payload = { event_gallery_url: url }
     MENU_TOGGLES.forEach(({ key }) => {
       payload[key] = menuToggles[key] ? 'true' : 'false'
     })
@@ -395,6 +404,20 @@ function Settings() {
                   <span className="text-sm text-text-primary">{label}</span>
                 </label>
               ))}
+            </div>
+
+            <div className="border-t border-surface-border pt-4">
+              <Input
+                label="Event Gallery URL"
+                type="url"
+                placeholder="https://..."
+                value={galleryUrl}
+                onChange={(e) => setGalleryUrl(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-text-secondary">
+                Opened in a new tab when participants click the Event Gallery tile. Leave blank to show "belum
+                tersedia" instead.
+              </p>
             </div>
 
             <div className="border-t border-surface-border pt-4">
